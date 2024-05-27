@@ -5,6 +5,9 @@ import PackageDescription
 
 let package = Package(
     name: "FlyDistSwift",
+    platforms: [
+        .macOS(.v14)
+    ],
     targets: [
         .executableTarget(
             name: "FlyDistSwift",
