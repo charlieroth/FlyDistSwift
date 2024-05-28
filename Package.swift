@@ -13,5 +13,8 @@ let package = Package(
             name: "FlyDistSwift",
             path: "Sources"
         ),
+        .testTarget(
+            name: "FlyDistSwiftTest"
+        )
     ]
 )

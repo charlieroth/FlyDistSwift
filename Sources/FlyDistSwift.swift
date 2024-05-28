@@ -3,9 +3,15 @@
 import Foundation
 
 class StandardError: TextOutputStream {
-  func write(_ string: String) {
-    try! FileHandle.standardError.write(contentsOf: Data(string.utf8))
-  }
+    func write(_ string: String) {
+        try! FileHandle.standardError.write(contentsOf: Data(string.utf8))
+    }
+}
+
+class StandardOut: TextOutputStream {
+    func write(_ string: String) {
+        try! FileHandle.standardOutput.write(contentsOf: Data(string.utf8))
+    }
 }
 
 struct InitBody: Decodable {
@@ -15,7 +21,7 @@ struct InitBody: Decodable {
     var node_ids: [String]
 }
 
-struct InitReply: Encodable {
+struct InitReply: Codable {
     var type: String
     var in_reply_to: Int
     var msg_id: Int
@@ -33,7 +39,7 @@ struct EchoBody: Decodable {
     var echo: String
 }
 
-struct EchoReply: Encodable {
+struct EchoReply: Codable {
     var type: String
     var in_reply_to: Int
     var echo: String
@@ -74,7 +80,7 @@ struct Message: Decodable {
     var body: MessageBody
 }
 
-struct Reply<T: Encodable>: Encodable {
+struct Reply<T: Codable>: Codable {
     var src: String
     var dest: String
     var body: T
@@ -111,62 +117,42 @@ actor Node {
     }
 }
 
+func handleMessage(message: String, node: Node, stderr: StandardError) async throws -> Data {
+    let jsonEncoder = JSONEncoder()
+    stderr.write("received: \(message)")
+    let messageData = message.data(using: .utf8)!
+    let decodedMessage = try! JSONDecoder().decode(Message.self, from: messageData)
+    switch decodedMessage.body {
+    case .`init`(let body):
+        let reply = await node.handleInit(
+            message: decodedMessage,
+            body: body
+        )
+        return try jsonEncoder.encode(reply)
+    case .echo(let body):
+        let reply = await node.handleEcho(
+            message: decodedMessage,
+            body: body
+        )
+        return try jsonEncoder.encode(reply)
+    }
+}
+
 
 @main
 struct FlyDistSwift {
     static func main() async throws {
-        // while let input = readLine(strippingNewline: true) {
-        // }
+        let stderr = StandardError()
+        let stdout = StandardOut()
         let node = Node()
-        let jsonEncoder = JSONEncoder()
-        let initMessage = """
-        {
-          "src": "n1",
-          "dest": "n3",
-          "body": {
-              "type": "init",
-              "msg_id": 1,
-              "node_id": "n3",
-              "node_ids": ["n1", "n2", "n3"]
-          }
+        stderr.write("in main loop")
+         while let message = readLine(strippingNewline: true) {
+            stderr.write("received: \(message)")
+            let jsonReply = try await handleMessage(message: message, node: node, stderr: stderr)
+            let jsonReplyString = String(data: jsonReply, encoding: .utf8)!
+            stderr.write("reply: \(jsonReplyString)")
+            stdout.write(jsonReplyString)
+            stdout.write("\n")
         }
-        """
-        let echoMessage = """
-        {
-          "src": "n1",
-          "dest": "n3",
-          "body": {
-              "type": "echo",
-              "msg_id": 2,
-              "echo": "Please echo 35"
-          }
-        }
-        """
-        let messages = [initMessage, echoMessage]
-        for message in messages {
-            print("incoming message:\n\(message)")
-            let messageData = message.data(using: .utf8)!
-            let decodedMessage = try! JSONDecoder().decode(Message.self, from: messageData)
-            switch decodedMessage.body {
-            case .`init`(let body):
-                let reply = await node.handleInit(
-                    message: decodedMessage,
-                    body: body
-                )
-                let jsonReply = try jsonEncoder.encode(reply)
-                let jsonReplyString = String(data: jsonReply, encoding: .utf8)!
-                print("reply: \(jsonReplyString)")
-            case .echo(let body):
-                let reply = await node.handleEcho(
-                    message: decodedMessage,
-                    body: body
-                )
-                let jsonReply = try jsonEncoder.encode(reply)
-                let jsonReplyString = String(data: jsonReply, encoding: .utf8)!
-                print("reply: \(jsonReplyString)")
-            }
-            print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-        }
-        
     }
 }
