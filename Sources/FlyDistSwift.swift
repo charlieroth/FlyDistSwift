@@ -53,14 +53,34 @@ struct EchoReply: Codable {
     }
 }
 
+struct GenerateBody: Codable {
+    var type: String
+    var msg_id: Int
+}
+
+struct GenerateReply: Codable {
+    var type: String
+    var id: Int
+    var in_reply_to: Int
+    var msg_id: Int
+    
+    init(type: String, in_reply_to: Int) {
+        self.type = type
+        self.in_reply_to = in_reply_to
+        self.id = Int(arc4random())
+        self.msg_id = Int(arc4random())
+    }
+}
+
 enum MessageBody {
     case `init`(InitBody)
     case echo(EchoBody)
+    case generate(GenerateBody)
 }
 
 extension MessageBody: Decodable {
     enum CodingKeys: CodingKey {
-        case `init`, echo
+        case `init`, echo, generate
     }
     
     init(from decoder: Decoder) throws {
@@ -68,6 +88,8 @@ extension MessageBody: Decodable {
             self = .`init`(body)
         } else if let body = try? EchoBody(from: decoder) {
             self = .echo(body)
+        } else if let body = try? GenerateBody(from: decoder) {
+            self = .generate(body)
         } else {
             fatalError()
         }
@@ -115,6 +137,14 @@ actor Node {
             )
         )
     }
+    
+    func handleGenerate(message: Message, body: GenerateBody) -> Reply<GenerateReply> {
+        return Reply<GenerateReply>(
+            src: self.id!,
+            dest: message.src,
+            body: GenerateReply(type: "generate_ok", in_reply_to: body.msg_id)
+        )
+    }
 }
 
 func handleMessage(message: String, node: Node, stderr: StandardError) async throws -> Data {
@@ -131,6 +161,12 @@ func handleMessage(message: String, node: Node, stderr: StandardError) async thr
         return try jsonEncoder.encode(reply)
     case .echo(let body):
         let reply = await node.handleEcho(
+            message: decodedMessage,
+            body: body
+        )
+        return try jsonEncoder.encode(reply)
+    case .generate(let body):
+        let reply = await node.handleGenerate(
             message: decodedMessage,
             body: body
         )
