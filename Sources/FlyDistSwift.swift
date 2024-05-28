@@ -14,139 +14,6 @@ class StandardOut: TextOutputStream {
     }
 }
 
-struct InitBody: Decodable {
-    var type: String
-    var msg_id: Int
-    var node_id: String
-    var node_ids: [String]
-}
-
-struct InitReply: Codable {
-    var type: String
-    var in_reply_to: Int
-    var msg_id: Int
-    
-    init(type: String, in_reply_to: Int) {
-        self.type = type
-        self.in_reply_to = in_reply_to
-        self.msg_id = Int(arc4random())
-    }
-}
-
-struct EchoBody: Decodable {
-    var type: String
-    var msg_id: Int
-    var echo: String
-}
-
-struct EchoReply: Codable {
-    var type: String
-    var in_reply_to: Int
-    var echo: String
-    var msg_id: Int
-    
-    init(type: String, in_reply_to: Int, echo: String) {
-        self.type = type
-        self.in_reply_to = in_reply_to
-        self.echo = echo
-        self.msg_id = Int(arc4random())
-    }
-}
-
-struct GenerateBody: Codable {
-    var type: String
-    var msg_id: Int
-}
-
-struct GenerateReply: Codable {
-    var type: String
-    var id: Int
-    var in_reply_to: Int
-    var msg_id: Int
-    
-    init(type: String, in_reply_to: Int) {
-        self.type = type
-        self.in_reply_to = in_reply_to
-        self.id = Int(arc4random())
-        self.msg_id = Int(arc4random())
-    }
-}
-
-enum MessageBody {
-    case `init`(InitBody)
-    case echo(EchoBody)
-    case generate(GenerateBody)
-}
-
-extension MessageBody: Decodable {
-    enum CodingKeys: CodingKey {
-        case `init`, echo, generate
-    }
-    
-    init(from decoder: Decoder) throws {
-        if let body = try? InitBody(from: decoder) {
-            self = .`init`(body)
-        } else if let body = try? EchoBody(from: decoder) {
-            self = .echo(body)
-        } else if let body = try? GenerateBody(from: decoder) {
-            self = .generate(body)
-        } else {
-            fatalError()
-        }
-    }
-}
-
-struct Message: Decodable {
-    var src: String
-    var dest: String
-    var body: MessageBody
-}
-
-struct Reply<T: Codable>: Codable {
-    var src: String
-    var dest: String
-    var body: T
-}
-
-actor Node {
-    var id: String? = nil
-    var nodes: [String]? = nil
-    
-    func handleInit(message: Message, body: InitBody) -> Reply<InitReply> {
-        self.id = body.node_id
-        self.nodes = body.node_ids
-        
-        return Reply<InitReply>(
-            src: body.node_id,
-            dest: message.src,
-            body: InitReply(
-                type: "init_ok",
-                in_reply_to: body.msg_id
-            )
-        )
-    }
-    
-    func handleEcho(message: Message, body: EchoBody) -> Reply<EchoReply> {
-        return Reply<EchoReply>(
-            src: self.id!,
-            dest: message.src,
-            body: EchoReply(
-                type: "echo_ok",
-                in_reply_to: body.msg_id,
-                echo: body.echo
-            )
-        )
-    }
-    
-    func handleGenerate(message: Message, body: GenerateBody) -> Reply<GenerateReply> {
-        return Reply<GenerateReply>(
-            src: self.id!,
-            dest: message.src,
-            body: GenerateReply(type: "generate_ok", in_reply_to: body.msg_id)
-        )
-    }
-}
-
 func handleMessage(message: String, node: Node, stderr: StandardError) async throws -> Data {
     let jsonEncoder = JSONEncoder()
     stderr.write("received: \(message)")
@@ -167,6 +34,24 @@ func handleMessage(message: String, node: Node, stderr: StandardError) async thr
         return try jsonEncoder.encode(reply)
     case .generate(let body):
         let reply = await node.handleGenerate(
+            message: decodedMessage,
+            body: body
+        )
+        return try jsonEncoder.encode(reply)
+    case .topology(let body):
+        let reply = await node.handleTopology(
+            message: decodedMessage,
+            body: body
+        )
+        return try jsonEncoder.encode(reply)
+    case .broadcast(let body):
+        let reply = await node.handleBroadcast(
+            message: decodedMessage,
+            body: body
+        )
+        return try jsonEncoder.encode(reply)
+    case .read(let body):
+        let reply = await node.handleRead(
             message: decodedMessage,
             body: body
         )
