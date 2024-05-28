@@ -53,14 +53,33 @@ actor Node {
         )
     }
     
-    func handleBroadcast(message: Message, body: BroadcastBody) -> Reply<BroadcastReply> {
+    func handleBroadcast(message: Message, body: BroadcastBody) throws -> Reply<BroadcastReply> {
         self.messages.append(body.message)
+        
+        let nodesToBroadcastTo = self.topology![self.id!]
+        for dest in nodesToBroadcastTo! {
+            Task {
+                try send(dest: dest, body: body)
+            }
+        }
         
         return Reply<BroadcastReply>(
             src: self.id!,
             dest: message.src,
             body: BroadcastReply(in_reply_to: body.msg_id)
         )
+    }
+
+    func send(dest: String, body: BroadcastBody) throws {
+        let stdout = StandardOut()
+        let reply = Reply<BroadcastBody>(
+            src: self.id!,
+            dest: dest,
+            body: body
+        )
+        let jsonReply = try JSONEncoder().encode(reply)
+        let jsonReplyString = String(data: jsonReply, encoding: .utf8)!
+        stdout.write("\(jsonReplyString)\n")
     }
     
     func handleRead(message: Message, body: ReadBody) -> Reply<ReadReply> {

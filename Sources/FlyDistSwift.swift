@@ -27,7 +27,7 @@ func handleMessage(message: String, node: Node, stderr: StandardError) async thr
         )
         return try jsonEncoder.encode(reply)
     case .broadcast(let body):
-        let reply = await node.handleBroadcast(
+        let reply = try await node.handleBroadcast(
             message: decodedMessage,
             body: body
         )
@@ -65,9 +65,9 @@ struct FlyDistSwift {
         let stderr = StandardError()
         let stdout = StandardOut()
         let node = Node()
-        stderr.write("in main loop")
+        stderr.write("in main loop\n")
          while let message = readLine(strippingNewline: true) {
-            stderr.write("received: \(message)")
+            stderr.write("received: \(message)\n")
             let jsonReply = try await handleMessage(message: message, node: node, stderr: stderr)
             let jsonReplyString = String(data: jsonReply, encoding: .utf8)!
             stderr.write("reply: \(jsonReplyString)")

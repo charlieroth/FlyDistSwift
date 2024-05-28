@@ -7,14 +7,12 @@
 
 import Foundation
 
-struct InitBody {
+struct InitBody: Codable {
     var type: String
     var msg_id: Int
     var node_id: String
     var node_ids: [String]
-}
-
-extension InitBody: Decodable {
+    
     enum CodingKeys: CodingKey {
         case type, msg_id, node_id, node_ids
     }
@@ -35,6 +33,13 @@ extension InitBody: Decodable {
         self.node_id = try container.decode(String.self, forKey: .node_id)
         self.node_ids = try container.decode([String].self, forKey: .node_ids)
     }
+    
+    init(type: String, msg_id: Int, node_id: String, node_ids: [String]) {
+        self.type = type
+        self.msg_id = msg_id
+        self.node_id = node_id
+        self.node_ids = node_ids
+    }
 }
 
 struct InitReply: Codable {
@@ -49,13 +54,11 @@ struct InitReply: Codable {
     }
 }
 
-struct EchoBody {
+struct EchoBody: Codable {
     var type: String
     var msg_id: Int
     var echo: String
-}
-
-extension EchoBody: Decodable {
+    
     enum CodingKeys: CodingKey {
         case type, msg_id, echo
     }
@@ -75,6 +78,12 @@ extension EchoBody: Decodable {
         self.msg_id = try container.decode(Int.self, forKey: .msg_id)
         self.echo = try container.decode(String.self, forKey: .echo)
     }
+    
+    init(type: String, msg_id: Int, echo: String) {
+        self.type = type
+        self.msg_id = msg_id
+        self.echo = echo
+    }
 }
 
 struct EchoReply: Codable {
@@ -91,12 +100,10 @@ struct EchoReply: Codable {
     }
 }
 
-struct GenerateBody {
+struct GenerateBody: Codable {
     var type: String
     var msg_id: Int
-}
-
-extension GenerateBody: Decodable {
+    
     enum CodingKeys: CodingKey {
         case type, msg_id
     }
@@ -114,6 +121,11 @@ extension GenerateBody: Decodable {
             self.type = typeValue
         }
         self.msg_id = try container.decode(Int.self, forKey: .msg_id)
+    }
+    
+    init(type: String, msg_id: Int) {
+        self.type = type
+        self.msg_id = msg_id
     }
 }
 
@@ -134,13 +146,11 @@ struct GenerateReply: Codable {
 /// A topology message is sent at the start of the test, after initialization,
 /// and informs the node of an optional network topology to use for broadcast.
 /// The topology consists of a map of node IDs to lists of neighbor node IDs.
-struct TopologyBody {
+struct TopologyBody: Codable {
     var type: String
     var msg_id: Int
     var topology: [String:[String]]
-}
-
-extension TopologyBody: Decodable {
+    
     enum CodingKeys: CodingKey {
         case type, msg_id, topology
     }
@@ -159,6 +169,12 @@ extension TopologyBody: Decodable {
         }
         self.msg_id = try container.decode(Int.self, forKey: .msg_id)
         self.topology = try container.decode([String:[String]].self, forKey: .topology)
+    }
+    
+    init(type: String, msg_id: Int, topology: [String:[String]]) {
+        self.type = type
+        self.msg_id = msg_id
+        self.topology = topology
     }
 }
 
@@ -210,6 +226,12 @@ struct BroadcastBody: Codable {
             self.type = typeValue
         }
     }
+    
+    init(type: String, message: Int, msg_id: Int) {
+        self.type = type
+        self.message = message
+        self.msg_id = msg_id
+    }
 }
 
 struct BroadcastReply: Codable {
@@ -225,12 +247,10 @@ struct BroadcastReply: Codable {
 }
 
 /// Requests all messages present on a node.
-struct ReadBody {
+struct ReadBody: Codable {
     var type: String
     var msg_id: Int
-}
-
-extension ReadBody: Decodable {
+    
     enum CodingKeys: CodingKey {
         case type, msg_id
     }
@@ -249,6 +269,11 @@ extension ReadBody: Decodable {
         }
         self.msg_id = try container.decode(Int.self, forKey: .msg_id)
     }
+    
+    init(type: String, msg_id: Int) {
+        self.type = type
+        self.msg_id = msg_id
+    }
 }
 
 struct ReadReply: Codable {
@@ -265,18 +290,14 @@ struct ReadReply: Codable {
     }
 }
 
-
-
-enum MessageBody {
+enum MessageBody: Codable {
     case `init`(InitBody)
     case echo(EchoBody)
     case generate(GenerateBody)
     case topology(TopologyBody)
     case broadcast(BroadcastBody)
     case read(ReadBody)
-}
-
-extension MessageBody: Decodable {
+    
     enum CodingKeys: String, CodingKey {
         case `init`
         case echo
@@ -305,7 +326,7 @@ extension MessageBody: Decodable {
     }
 }
 
-struct Message: Decodable {
+struct Message: Codable {
     var src: String
     var dest: String
     var body: MessageBody
