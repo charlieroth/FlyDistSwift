@@ -12,9 +12,6 @@ let package = Package(
         .executableTarget(
             name: "FlyDistSwift",
             path: "Sources"
-        ),
-        .testTarget(
-            name: "FlyDistSwiftTest"
         )
     ]
 )

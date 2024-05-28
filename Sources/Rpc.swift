@@ -7,37 +7,35 @@
 
 import Foundation
 
-struct InitBody: Decodable {
-    var type: InitBodyType
+struct InitBody {
+    var type: String
     var msg_id: Int
     var node_id: String
     var node_ids: [String]
-    
-    enum InitBodyType: String {
-        case `init` = "init"
-    }
-    
+}
+
+extension InitBody: Decodable {
     enum CodingKeys: CodingKey {
         case type, msg_id, node_id, node_ids
     }
     
     init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        guard let _ = try? container.decode(InitBodyType.`init`, forKey: .type) else {
-            throw DecodingError.dataCorrupted(
-                DecodingError.Context(
-                    codingPath: container.codingPath,
-                    debugDescription: "Init message does not contain"
-                )
+        let typeValue = try container.decode(String.self, forKey: .type)
+        if typeValue != "init" {
+            throw DecodingError.dataCorruptedError(
+                forKey: .type,
+                in: container,
+                debugDescription: "Message body must have type 'init'"
             )
+        } else {
+            self.type = typeValue
         }
-        self.type = .`init`
         self.msg_id = try container.decode(Int.self, forKey: .msg_id)
         self.node_id = try container.decode(String.self, forKey: .node_id)
         self.node_ids = try container.decode([String].self, forKey: .node_ids)
     }
 }
-
 
 struct InitReply: Codable {
     var type: String
@@ -51,10 +49,32 @@ struct InitReply: Codable {
     }
 }
 
-struct EchoBody: Decodable {
+struct EchoBody {
     var type: String
     var msg_id: Int
     var echo: String
+}
+
+extension EchoBody: Decodable {
+    enum CodingKeys: CodingKey {
+        case type, msg_id, echo
+    }
+    
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let typeValue = try container.decode(String.self, forKey: .type)
+        if typeValue != "echo" {
+            throw DecodingError.dataCorruptedError(
+                forKey: .type,
+                in: container,
+                debugDescription: "Message body must have type 'echo'"
+            )
+        } else {
+            self.type = typeValue
+        }
+        self.msg_id = try container.decode(Int.self, forKey: .msg_id)
+        self.echo = try container.decode(String.self, forKey: .echo)
+    }
 }
 
 struct EchoReply: Codable {
@@ -71,9 +91,30 @@ struct EchoReply: Codable {
     }
 }
 
-struct GenerateBody: Codable {
+struct GenerateBody {
     var type: String
     var msg_id: Int
+}
+
+extension GenerateBody: Decodable {
+    enum CodingKeys: CodingKey {
+        case type, msg_id
+    }
+    
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let typeValue = try container.decode(String.self, forKey: .type)
+        if typeValue != "generate" {
+            throw DecodingError.dataCorruptedError(
+                forKey: .type,
+                in: container,
+                debugDescription: "Message body must have type 'generate'"
+            )
+        } else {
+            self.type = typeValue
+        }
+        self.msg_id = try container.decode(Int.self, forKey: .msg_id)
+    }
 }
 
 struct GenerateReply: Codable {
@@ -93,10 +134,32 @@ struct GenerateReply: Codable {
 /// A topology message is sent at the start of the test, after initialization,
 /// and informs the node of an optional network topology to use for broadcast.
 /// The topology consists of a map of node IDs to lists of neighbor node IDs.
-struct TopologyBody: Codable {
+struct TopologyBody {
     var type: String
     var msg_id: Int
     var topology: [String:[String]]
+}
+
+extension TopologyBody: Decodable {
+    enum CodingKeys: CodingKey {
+        case type, msg_id, topology
+    }
+    
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let typeValue = try container.decode(String.self, forKey: .type)
+        if typeValue != "topology" {
+            throw DecodingError.dataCorruptedError(
+                forKey: .type,
+                in: container,
+                debugDescription: "Message body must have type 'topology'"
+            )
+        } else {
+            self.type = typeValue
+        }
+        self.msg_id = try container.decode(Int.self, forKey: .msg_id)
+        self.topology = try container.decode([String:[String]].self, forKey: .topology)
+    }
 }
 
 struct TopologyReply: Codable {
@@ -122,9 +185,9 @@ enum BroadcastMessage: Codable {
 
 /// Sends a single message into the broadcast system, and requests that it be
 /// broadcast to everyone. Nodes respond with a simple acknowledgement message.
-struct BroadcastBody: Decodable {
+struct BroadcastBody: Codable {
     var type: String
-    var message: BroadcastMessage
+    var message: Int
     var msg_id: Int
     
     enum CodingKeys: String, CodingKey {
@@ -133,37 +196,19 @@ struct BroadcastBody: Decodable {
     
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        if let stringProperty = try? container.decode(String.self, forKey: .message) {
-            self.message = .string(stringProperty)
-        } else if let intProperty = try? container.decode(Int.self, forKey: .message) {
-            self.message = .int(intProperty)
-        } else if let boolProperty = try? container.decode(Bool.self, forKey: .message) {
-            self.message = .bool(boolProperty)
-        } else if let doubleProperty = try? container.decode(Double.self, forKey: .message) {
-            self.message = .double(doubleProperty)
+        self.msg_id = try container.decode(Int.self, forKey: .msg_id)
+        self.message = try container.decode(Int.self, forKey: .message)
+        
+        let typeValue = try container.decode(String.self, forKey: .type)
+        if typeValue != "broadcast" {
+            throw DecodingError.dataCorruptedError(
+                forKey: .type,
+                in: container,
+                debugDescription: "Message body must have type 'broadcast'"
+            )
         } else {
-            fatalError()
+            self.type = typeValue
         }
-        
-        guard let typeProperty = try? container.decode(String.self, forKey: .type) else {
-            throw DecodingError.dataCorrupted(
-                DecodingError.Context(
-                    codingPath: container.codingPath,
-                    debugDescription: "Invalid data type for 'type' property"
-                )
-            )
-        }
-        self.type = typeProperty
-        
-        guard let msgIdProperty = try? container.decode(Int.self, forKey: .msg_id) else {
-            throw DecodingError.dataCorrupted(
-                DecodingError.Context(
-                    codingPath: container.codingPath,
-                    debugDescription: "Invalid data type for 'msg_id' property"
-                )
-            )
-        }
-        self.msg_id = msgIdProperty
     }
 }
 
@@ -180,24 +225,47 @@ struct BroadcastReply: Codable {
 }
 
 /// Requests all messages present on a node.
-struct ReadBody: Codable {
+struct ReadBody {
     var type: String
     var msg_id: Int
 }
 
+extension ReadBody: Decodable {
+    enum CodingKeys: CodingKey {
+        case type, msg_id
+    }
+    
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let typeValue = try container.decode(String.self, forKey: .type)
+        if typeValue != "read" {
+            throw DecodingError.dataCorruptedError(
+                forKey: .type,
+                in: container,
+                debugDescription: "Message body must have type 'read'"
+            )
+        } else {
+            self.type = typeValue
+        }
+        self.msg_id = try container.decode(Int.self, forKey: .msg_id)
+    }
+}
+
 struct ReadReply: Codable {
     var type: String
-    var messages: [BroadcastMessage]
+    var messages: [Int]
     var in_reply_to: Int
     var msg_id: Int
     
-    init(in_reply_to: Int, messages: [BroadcastMessage]) {
+    init(in_reply_to: Int, messages: [Int]) {
         self.type = "read_ok"
         self.messages = messages
         self.in_reply_to = in_reply_to
         self.msg_id = Int(arc4random())
     }
 }
+
+
 
 enum MessageBody {
     case `init`(InitBody)
@@ -209,8 +277,13 @@ enum MessageBody {
 }
 
 extension MessageBody: Decodable {
-    enum CodingKeys: CodingKey {
-        case `init`, echo, generate, topology, broadcast, read
+    enum CodingKeys: String, CodingKey {
+        case `init`
+        case echo
+        case generate
+        case topology
+        case broadcast
+        case read
     }
     
     init(from decoder: Decoder) throws {

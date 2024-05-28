@@ -20,24 +20,6 @@ func handleMessage(message: String, node: Node, stderr: StandardError) async thr
     let messageData = message.data(using: .utf8)!
     let decodedMessage = try! JSONDecoder().decode(Message.self, from: messageData)
     switch decodedMessage.body {
-    case .`init`(let body):
-        let reply = await node.handleInit(
-            message: decodedMessage,
-            body: body
-        )
-        return try jsonEncoder.encode(reply)
-    case .echo(let body):
-        let reply = await node.handleEcho(
-            message: decodedMessage,
-            body: body
-        )
-        return try jsonEncoder.encode(reply)
-    case .generate(let body):
-        let reply = await node.handleGenerate(
-            message: decodedMessage,
-            body: body
-        )
-        return try jsonEncoder.encode(reply)
     case .topology(let body):
         let reply = await node.handleTopology(
             message: decodedMessage,
@@ -56,9 +38,26 @@ func handleMessage(message: String, node: Node, stderr: StandardError) async thr
             body: body
         )
         return try jsonEncoder.encode(reply)
+    case .generate(let body):
+        let reply = await node.handleGenerate(
+            message: decodedMessage,
+            body: body
+        )
+        return try jsonEncoder.encode(reply)
+    case .echo(let body):
+        let reply = await node.handleEcho(
+            message: decodedMessage,
+            body: body
+        )
+        return try jsonEncoder.encode(reply)
+    case .`init`(let body):
+        let reply = await node.handleInit(
+            message: decodedMessage,
+            body: body
+        )
+        return try jsonEncoder.encode(reply)
     }
 }
-
 
 @main
 struct FlyDistSwift {

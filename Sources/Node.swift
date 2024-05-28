@@ -10,7 +10,7 @@ import Foundation
 actor Node {
     var id: String? = nil
     var nodes: [String]? = nil
-    var messages: [BroadcastBody] = []
+    var messages: [Int] = []
     var topology: [String:[String]]? = nil
     
     func handleInit(message: Message, body: InitBody) -> Reply<InitReply> {
@@ -42,7 +42,7 @@ actor Node {
             body: GenerateReply(in_reply_to: body.msg_id)
         )
     }
-    
+ 
     func handleTopology(message: Message, body: TopologyBody) -> Reply<TopologyReply> {
         self.topology = body.topology
         
@@ -54,7 +54,7 @@ actor Node {
     }
     
     func handleBroadcast(message: Message, body: BroadcastBody) -> Reply<BroadcastReply> {
-        messages.append(body)
+        self.messages.append(body.message)
         
         return Reply<BroadcastReply>(
             src: self.id!,
@@ -69,9 +69,7 @@ actor Node {
             dest: message.src,
             body: ReadReply(
                 in_reply_to: body.msg_id,
-                messages: self.messages.map({ body in
-                    body.message
-                })
+                messages: self.messages
             )
         )
     }
