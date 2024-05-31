@@ -7,11 +7,31 @@
 
 import Foundation
 
+class StandardError: TextOutputStream {
+    func write(_ string: String) {
+        try! FileHandle.standardError.write(contentsOf: Data(string.utf8))
+    }
+}
+
+class StandardOut: TextOutputStream {
+    func write(_ string: String) {
+        try! FileHandle.standardOutput.write(contentsOf: Data(string.utf8))
+    }
+}
+
 actor Node {
+    var stderr: StandardError
+    var stdout: StandardOut
+    
     var id: String? = nil
     var nodes: [String]? = nil
     var messages: [Int] = []
     var topology: [String:[String]]? = nil
+    
+    init(stderr: StandardError, stdout: StandardOut) {
+        self.stderr = stderr
+        self.stdout = stdout
+    }
     
     func handleInit(message: Message, body: InitBody) -> Reply<InitReply> {
         self.id = body.node_id
@@ -54,32 +74,16 @@ actor Node {
     }
     
     func handleBroadcast(message: Message, body: BroadcastBody) throws -> Reply<BroadcastReply> {
+        self.stderr.write("handleBroadcast, body: \(body)\n")
         self.messages.append(body.message)
         
-        let nodesToBroadcastTo = self.topology![self.id!]
-        for dest in nodesToBroadcastTo! {
-            Task {
-                try send(dest: dest, body: body)
-            }
-        }
+        try broadcast(message: message, body: body)
         
         return Reply<BroadcastReply>(
             src: self.id!,
             dest: message.src,
             body: BroadcastReply(in_reply_to: body.msg_id)
         )
-    }
-
-    func send(dest: String, body: BroadcastBody) throws {
-        let stdout = StandardOut()
-        let reply = Reply<BroadcastBody>(
-            src: self.id!,
-            dest: dest,
-            body: body
-        )
-        let jsonReply = try JSONEncoder().encode(reply)
-        let jsonReplyString = String(data: jsonReply, encoding: .utf8)!
-        stdout.write("\(jsonReplyString)\n")
     }
     
     func handleRead(message: Message, body: ReadBody) -> Reply<ReadReply> {
@@ -91,5 +95,28 @@ actor Node {
                 messages: self.messages
             )
         )
+    }
+    
+    private func broadcast(message: Message, body: BroadcastBody) throws {
+        for dest in self.nodes! {
+            if dest == self.id! || dest == message.src {
+                continue
+            }
+            
+            Task {
+                try send(src: self.id!, dest: dest, body: body)
+            }
+        }
+    }
+    
+    private func send(src: String, dest: String, body: BroadcastBody) throws {
+        let reply = Reply<BroadcastBody>(
+            src: src,
+            dest: dest,
+            body: body
+        )
+        let jsonReply = try JSONEncoder().encode(reply)
+        let jsonReplyString = String(data: jsonReply, encoding: .utf8)!
+        self.stdout.write("\(jsonReplyString)\n")
     }
 }

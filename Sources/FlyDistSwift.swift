@@ -2,23 +2,14 @@
 
 import Foundation
 
-class StandardError: TextOutputStream {
-    func write(_ string: String) {
-        try! FileHandle.standardError.write(contentsOf: Data(string.utf8))
-    }
-}
-
-class StandardOut: TextOutputStream {
-    func write(_ string: String) {
-        try! FileHandle.standardOutput.write(contentsOf: Data(string.utf8))
-    }
-}
-
-func handleMessage(message: String, node: Node, stderr: StandardError) async throws -> Data {
+func handleMessage(message: String, node: Node, stderr: StandardError) async throws -> Data? {
     let jsonEncoder = JSONEncoder()
-    stderr.write("received: \(message)")
+    stderr.write("received: \(message)\n")
     let messageData = message.data(using: .utf8)!
-    let decodedMessage = try! JSONDecoder().decode(Message.self, from: messageData)
+    guard let decodedMessage = try? JSONDecoder().decode(Message.self, from: messageData) else {
+        return nil
+    }
+    
     switch decodedMessage.body {
     case .topology(let body):
         let reply = await node.handleTopology(
@@ -64,15 +55,17 @@ struct FlyDistSwift {
     static func main() async throws {
         let stderr = StandardError()
         let stdout = StandardOut()
-        let node = Node()
+        let node = Node(stderr: stderr, stdout: stdout)
         stderr.write("in main loop\n")
          while let message = readLine(strippingNewline: true) {
+            guard let jsonReply = try await handleMessage(message: message, node: node, stderr: stderr) else {
+                 stderr.write("unsupported message: \(message)\n")
+                 continue
+            }
             stderr.write("received: \(message)\n")
-            let jsonReply = try await handleMessage(message: message, node: node, stderr: stderr)
-            let jsonReplyString = String(data: jsonReply, encoding: .utf8)!
-            stderr.write("reply: \(jsonReplyString)")
-            stdout.write(jsonReplyString)
-            stdout.write("\n")
+            let jsonReplyString: String = String(data: jsonReply, encoding: .utf8)!
+            stderr.write("reply: \(jsonReplyString)\n")
+            stdout.write("\(jsonReplyString)\n")
         }
     }
 }

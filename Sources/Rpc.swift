@@ -290,6 +290,10 @@ struct ReadReply: Codable {
     }
 }
 
+enum MessageBodyDecodingError: Error {
+    case unsupportedMessage
+}
+
 enum MessageBody: Codable {
     case `init`(InitBody)
     case echo(EchoBody)
@@ -321,7 +325,7 @@ enum MessageBody: Codable {
         } else if let body = try? ReadBody(from: decoder) {
             self = .read(body)
         } else {
-            fatalError()
+            throw MessageBodyDecodingError.unsupportedMessage
         }
     }
 }
