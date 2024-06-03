@@ -24,7 +24,7 @@ languages for building concurrent, distributed systems.
 #### Go
 
 - [x] Challenge 1: Echo
-- [ ] Challenge 2: Unique ID Generation
+- [x] Challenge 2: Unique ID Generation
 - [ ] Challenge 3a: Single-Node Broadcast
 - [ ] Challenge 3b: Multi-Node Broadcast
 - [ ] Challenge 3c: Fault Tolerant Broadcast

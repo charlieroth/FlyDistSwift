@@ -43,6 +43,11 @@ type EchoMessageBody struct {
 	Echo  string   `json:"echo,omitempty"`
 }
 
+type GenerateMessageBody struct {
+	MessageBody
+	Id  int   `json:"id,omitempty"`
+}
+
 type HandlerFunc func(msg Message) error
 
 type Node struct {
