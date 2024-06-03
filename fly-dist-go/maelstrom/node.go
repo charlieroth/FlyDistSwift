@@ -1,4 +1,4 @@
-package main
+package maelstrom
 
 import (
 	"bufio"
@@ -34,8 +34,13 @@ type MessageBody struct {
 
 type InitMessageBody struct {
 	MessageBody
-	NodeId  string   `json"node_id,omitempty"`
-	NodeIds []string `json"node_ids,omitempty"`
+	NodeId  string   `json:"node_id,omitempty"`
+	NodeIds []string `json:"node_ids,omitempty"`
+}
+
+type EchoMessageBody struct {
+	MessageBody
+	Echo  string   `json:"echo,omitempty"`
 }
 
 type HandlerFunc func(msg Message) error
@@ -46,7 +51,7 @@ type Node struct {
 
 	id        string
 	nodeIds   []string
-	nextMsgId int
+	// nextMsgId int
 
 	handlers  map[string]HandlerFunc
 	callbacks map[int]HandlerFunc
@@ -100,10 +105,8 @@ func (n *Node) Run() error {
 		log.Printf("Receieved %s", msg)
 
 		var h HandlerFunc
-		if body.Type == "init" {
-			h = n.handleInitMessage
-		} else if h = n.handlers[body.Type]; h == nil {
-			return fmt.Errorf("No handler for %s", line)
+		if h = n.handlers[body.Type]; h == nil {
+			return fmt.Errorf("no handler for %s", line)
 		}
 
 		// Handle message in a separate go routine
@@ -128,4 +131,33 @@ func (n *Node) handleMessage(h HandlerFunc, msg Message) {
 	if err := h(msg); err != nil {
 		log.Printf("Exception handle %#v:\n%s", msg, err)
 	}
+}
+
+func (n *Node) Send(dest string, body any) error {
+	bodyJson, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+
+	buf, err := json.Marshal(Message{
+		Src: n.id,
+		Dest: dest,
+		Body: bodyJson,
+	})
+	if err != nil {
+		return err
+	}
+
+	// synchronize access to STDOUT
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	log.Printf("sent: %s", buf)
+
+	if _, err = n.Stdout.Write(buf); err != nil {
+		return err
+	}
+
+	_, err = n.Stdout.Write([]byte{'\n'})
+	return err
 }
