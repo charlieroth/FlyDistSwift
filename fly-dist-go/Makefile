@@ -15,3 +15,12 @@ unique-ids:
 
 clean-unique-ids:
 	rm bin/unique-id
+
+single-node-broadcast:
+	cd cmd/single-node-broadcast && \
+	go build -o single-node-broadcast && \
+	cd - && \
+	mv cmd/single-node-broadcast/single-node-broadcast bin
+
+clean-single-node-broadcast:
+	rm bin/single-node-broadcast
