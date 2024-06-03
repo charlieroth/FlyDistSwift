@@ -41,7 +41,6 @@ func main() {
 		rand.New(rand.NewSource(time.Now().UnixNano()))
 		randomId := rand.Intn(math.MaxInt)
 
-		// echo the original message with the updated message type
 		return n.Send(msg.Src, m.GenerateMessageBody{
 			MessageBody: m.MessageBody{
 				InReplyTo: body.MsgId,
