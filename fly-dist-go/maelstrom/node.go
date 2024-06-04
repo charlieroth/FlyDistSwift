@@ -2,6 +2,7 @@ package maelstrom
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -22,6 +23,17 @@ func (m *Message) Type() string {
 		return ""
 	}
 	return body.Type
+}
+
+func (m *Message) RPCError() *RPCError {
+	var body MessageBody
+	if err := json.Unmarshal(m.Body, &body); err != nil {
+		return NewRPCError(Crash, err.Error())
+	} else if body.Code == 0 {
+		return nil
+	}
+
+	return NewRPCError(body.Code, body.Text)
 }
 
 type MessageBody struct {
@@ -71,9 +83,7 @@ type Node struct {
 
 	id        string
 	nodeIds   []string
-	topology  map[string][]string
-	messages  []int
-	// nextMsgId int
+	nextMsgId int
 
 	handlers  map[string]HandlerFunc
 	callbacks map[int]HandlerFunc
@@ -94,28 +104,10 @@ func NewNode() *Node {
 func (n *Node) Init(id string, nodeIds []string) {
 	n.id = id
 	n.nodeIds = nodeIds
-	n.topology = make(map[string][]string)
-	n.messages = make([]int, 0)
-}
-
-func (n *Node) InitTopology(topology map[string][]string) {
-	n.topology = topology
 }
 
 func (n *Node) Id() string {
 	return n.id
-}
-
-func (n *Node) Topology() []string {
-	return n.topology[n.id]
-}
-
-func (n *Node) SaveMessage(message int) {
-	n.messages = append(n.messages, message)
-}
-
-func (n *Node) Messages() []int {
-	return n.messages
 }
 
 func (n *Node) NodeIds() []string {
@@ -144,6 +136,26 @@ func (n *Node) Run() error {
 		}
 		log.Printf("Receieved %s", msg)
 
+		if body.InReplyTo != 0 {
+			// extract callback, if replying to a previous message
+			n.mu.Lock()
+			h := n.callbacks[body.InReplyTo]
+			delete(n.callbacks, body.InReplyTo)
+			n.mu.Unlock()
+
+			if h == nil {
+				log.Printf("Ingoring reply to %d with no callback", body.InReplyTo)
+				continue
+			}
+
+			n.wg.Add(1)
+			go func() {
+				defer n.wg.Done()
+				n.handleCallback(h, msg)
+			}()
+			continue
+		}
+
 		var h HandlerFunc
 		if h = n.handlers[body.Type]; h == nil {
 			return fmt.Errorf("no handler for %s", line)
@@ -167,14 +179,81 @@ func (n *Node) Run() error {
 	return nil
 }
 
-func (n *Node) handleMessage(h HandlerFunc, msg Message) {
+func (n *Node) handleCallback(h HandlerFunc, msg Message) {
 	if err := h(msg); err != nil {
-		log.Printf("Exception handle %#v:\n%s", msg, err)
+		log.Printf("callback error: %s", err)
 	}
 }
 
-func (n *Node) Broadcast(body BroadcastMessageBody, dest string) error {
-	return nil
+func (n *Node) handleMessage(h HandlerFunc, msg Message) {
+	if err := h(msg); err != nil {
+		switch err := err.(type) {
+		case *RPCError:
+			if err := n.Reply(msg, err); err != nil {
+				log.Printf("reply error: %s", err)
+			}
+		default:
+			log.Printf("Exception handling %#v:\n%s", msg, err)
+			if err := n.Reply(msg, NewRPCError(Crash, err.Error())); err != nil {
+				log.Printf("reply error: %s", err)
+			}
+		}
+	}
+}
+
+func (n *Node) Reply(msg Message, body any) error {
+	var msgBody MessageBody
+	if err := json.Unmarshal(msg.Body, &msgBody); err != nil {
+		return err
+	}
+
+	// marshal/unmarshal to inject reply message id
+	b := make(map[string]any)
+	if buf, err := json.Marshal(body); err != nil {
+		return err
+	} else if err := json.Unmarshal(buf, &b); err != nil {
+		return err
+	}
+	b["in_reply_to"] = msgBody.MsgId
+	return n.Send(msg.Src, b)
+}
+
+func (n *Node) SyncRPC(ctx context.Context, dest string, body any) (Message, error) {
+	responseChan := make(chan Message)
+	if err := n.RPC(dest, body, func (m Message) error {
+		responseChan <- m
+		return nil
+	}); err != nil {
+		return Message{}, err
+	}
+
+	select {
+	case <-ctx.Done():
+		return Message{}, ctx.Err()
+
+	case m := <-responseChan:
+		if err := m.RPCError(); err != nil {
+			return m, err
+		}
+
+		return m, nil
+	}
+}
+
+func (n *Node) RPC(dest string, body any, handler HandlerFunc) error {
+	n.mu.Lock()
+	n.nextMsgId++
+	msgId := n.nextMsgId
+	n.callbacks[msgId] = handler
+	n.mu.Unlock()
+	b := make(map[string]any)
+	if buf, err := json.Marshal(body); err != nil {
+		return err
+	} else if err := json.Unmarshal(buf, &b); err != nil {
+		return err
+	}
+	b["msg_id"] = msgId
+	return n.Send(dest, b)
 }
 
 func (n *Node) Send(dest string, body any) error {
@@ -205,3 +284,4 @@ func (n *Node) Send(dest string, body any) error {
 	_, err = n.Stdout.Write([]byte{'\n'})
 	return err
 }
+

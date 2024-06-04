@@ -24,3 +24,12 @@ single-node-broadcast:
 
 clean-single-node-broadcast:
 	rm bin/single-node-broadcast
+
+multi-node-broadcast:
+	cd cmd/multi-node-broadcast && \
+	go build -o multi-node-broadcast && \
+	cd - && \
+	mv cmd/multi-node-broadcast/multi-node-broadcast bin
+
+clean-multi-node-broadcast:
+	rm bin/multi-node-broadcast
