@@ -6,54 +6,53 @@ import (
 	"log"
 	"math"
 	"math/rand"
-	"os"
 	"time"
 
 	m "github.com/charlieroth/gossip-gloomers/fly-dist-go/maelstrom"
 )
 
+type Server struct {
+	n *m.Node
+}
+
+func (s *Server) initHandler(msg m.Message) error {
+	var body m.InitMessageBody
+	if err := json.Unmarshal(msg.Body, &body); err != nil {
+		return fmt.Errorf("unmarshal init message body: %w", err)
+	}
+
+	s.n.Init(body.NodeId, body.NodeIds)
+	log.Printf("Node %s initialized", s.n.Id())
+
+	return s.n.Reply(msg, map[string]any{
+		"type": "init_ok",
+	})
+}
+
+func (s *Server) generateHandler(msg m.Message) error {
+	var body m.MessageBody
+	if err := json.Unmarshal(msg.Body, &body); err != nil {
+		return err
+	}
+
+	rand.New(rand.NewSource(time.Now().UnixNano()))
+	randomId := rand.Intn(math.MaxInt)
+
+	return s.n.Reply(msg, map[string]any{
+		"type": "generate_ok",
+		"id": randomId,
+	})
+}
+
 func main() {
 	n := m.NewNode()
+	s := &Server{ n: n}
 
-	n.Handle("init", func(msg m.Message) error {
-		var body m.InitMessageBody
-		if err := json.Unmarshal(msg.Body, &body); err != nil {
-			return fmt.Errorf("unmarshal init message body: %w", err)
-		}
+	n.Handle("init", s.initHandler)
+	n.Handle("generate", s.generateHandler)
 
-		n.Init(body.NodeId, body.NodeIds)
-		log.Printf("Node %s initialized", n.Id())
-
-		return n.Send(msg.Src, m.InitMessageBody{
-			MessageBody: m.MessageBody{
-				InReplyTo: body.MsgId,
-				Type: "init_ok",
-			},
-		})
-	})
-
-	n.Handle("generate", func(msg m.Message) error {
-		var body m.MessageBody
-		if err := json.Unmarshal(msg.Body, &body); err != nil {
-			return err
-		}
-
-		rand.New(rand.NewSource(time.Now().UnixNano()))
-		randomId := rand.Intn(math.MaxInt)
-
-		return n.Send(msg.Src, m.GenerateMessageBody{
-			MessageBody: m.MessageBody{
-				InReplyTo: body.MsgId,
-				Type: "generate_ok",
-			},
-			Id: randomId,
-		})
-	})
-
-	// execute node's message loop. runs untils stdin is closed
 	if err := n.Run(); err != nil {
-		log.Printf("ERROR: %s", err)
-		os.Exit(1)
+		log.Fatal(err)
 	}
 }
 
