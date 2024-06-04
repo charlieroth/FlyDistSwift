@@ -33,3 +33,12 @@ multi-node-broadcast:
 
 clean-multi-node-broadcast:
 	rm bin/multi-node-broadcast
+
+fault-tolerant-broadcast:
+	cd cmd/fault-tolerant-broadcast && \
+	go build -o fault-tolerant-broadcast && \
+	cd - && \
+	mv cmd/fault-tolerant-broadcast/fault-tolerant-broadcast bin
+
+clean-fault-tolerant-broadcast:
+	rm bin/fault-tolerant-broadcast
