@@ -48,6 +48,21 @@ type GenerateMessageBody struct {
 	Id  int   `json:"id,omitempty"`
 }
 
+type TopologyMessageBody struct {
+	MessageBody
+	Topology  map[string][]string   `json:"topology,omitempty"`
+}
+
+type BroadcastMessageBody struct {
+	MessageBody
+	Message  int   `json:"message,omitempty"`
+}
+
+type ReadMessageBody struct {
+	MessageBody
+	Messages []int `json:"messages,omitempty"`
+}
+
 type HandlerFunc func(msg Message) error
 
 type Node struct {
@@ -56,6 +71,8 @@ type Node struct {
 
 	id        string
 	nodeIds   []string
+	topology  map[string][]string
+	messages  []int
 	// nextMsgId int
 
 	handlers  map[string]HandlerFunc
@@ -77,10 +94,28 @@ func NewNode() *Node {
 func (n *Node) Init(id string, nodeIds []string) {
 	n.id = id
 	n.nodeIds = nodeIds
+	n.topology = make(map[string][]string)
+	n.messages = make([]int, 0)
+}
+
+func (n *Node) InitTopology(topology map[string][]string) {
+	n.topology = topology
 }
 
 func (n *Node) Id() string {
 	return n.id
+}
+
+func (n *Node) Topology() []string {
+	return n.topology[n.id]
+}
+
+func (n *Node) SaveMessage(message int) {
+	n.messages = append(n.messages, message)
+}
+
+func (n *Node) Messages() []int {
+	return n.messages
 }
 
 func (n *Node) NodeIds() []string {
@@ -136,6 +171,10 @@ func (n *Node) handleMessage(h HandlerFunc, msg Message) {
 	if err := h(msg); err != nil {
 		log.Printf("Exception handle %#v:\n%s", msg, err)
 	}
+}
+
+func (n *Node) Broadcast(body BroadcastMessageBody, dest string) error {
+	return nil
 }
 
 func (n *Node) Send(dest string, body any) error {

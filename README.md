@@ -25,7 +25,7 @@ languages for building concurrent, distributed systems.
 
 - [x] Challenge 1: Echo
 - [x] Challenge 2: Unique ID Generation
-- [ ] Challenge 3a: Single-Node Broadcast
+- [x] Challenge 3a: Single-Node Broadcast
 - [ ] Challenge 3b: Multi-Node Broadcast
 - [ ] Challenge 3c: Fault Tolerant Broadcast
 - [ ] Challenge 3d: Efficient Broadcast, Part 1
