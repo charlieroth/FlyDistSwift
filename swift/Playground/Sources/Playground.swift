@@ -1,94 +1,106 @@
 import Foundation
-
 import Distributed
 import DistributedCluster
+import ArgumentParser
 
+typealias DefaultDistributedActorSystem = ClusterSystem
 
-
-distributed actor Node {
-    typealias ActorSystem = ClusterSystem
+distributed public actor PlaygroundNode {
+    var neighbors: [PlaygroundNode] = []
     
-    var name: UUID
-    var count: Int
-    var clusterState: [UUID:Int]
+    struct Message: Codable {
+        var src: String
+        var content: String
+    }
     
-    init(name: UUID, actorSystem: ActorSystem) {
-        self.name = name
-        self.count = 0
-        self.clusterState = [:]
+    public init(actorSystem: ClusterSystem) async {
         self.actorSystem = actorSystem
+        await actorSystem.receptionist.checkIn(self, with: Self.key)
     }
     
-    distributed func increment() async throws -> Int {
-        self.count += 1
-        print("\(self.name)[inc]: \(self.count)")
-        return self.count
+    distributed func listen() async throws {
+        for await node in await actorSystem.receptionist.listing(of: Self.key) {
+            print("\(actorSystem.cluster.endpoint): node joined, \(node.id)")
+            self.neighbors.append(node)
+        }
     }
     
-    distributed func update(who nodeId: UUID, with nodeCount: Int) -> Void {
-        print("\(self.name)[update]: \(nodeId), \(nodeCount)")
-        self.clusterState[nodeId] = nodeCount
+    distributed func ping(message: String) async throws {
+        if neighbors.isEmpty { return }
+        
+        for node in neighbors {
+            if node.id == self.id {
+                continue
+            }
+            
+            try await node.pong(
+                message: Message(
+                    src: "\(actorSystem.cluster.endpoint.port):\(self.id.name)",
+                    content: message
+                )
+            )
+        }
+    }
+    
+    distributed func pong(message: Message) async {
+        print("\(self.id.name): received \(message)")
     }
 }
 
-extension DistributedReception.Key {
-    static var nodes: DistributedReception.Key<Node> {
-        "nodes"
+extension PlaygroundNode {
+    static var key: DistributedReception.Key<PlaygroundNode> { "nodes" }
+}
+
+func ensureCluster(_ systems: ClusterSystem..., within: Duration) async throws {
+    let nodes = Set(systems.map(\.settings.bindNode))
+    try await withThrowingTaskGroup(of: Void.self) { group in
+        for system in systems {
+            group.addTask {
+                try await system.cluster.waitFor(nodes, .up, within: within)
+            }
+        }
+        // loop explicitly to propagagte any error that might have been thrown
+        for try await _ in group {
+            
+        }
     }
 }
 
 @main
-struct Playground {
-    static func main() async throws {
-        let system = await ClusterSystem("FirstSystem") { settings in
-            settings.endpoint.host = "127.0.0.1"
-            settings.endpoint.port = 4269
+struct Playground: AsyncParsableCommand {
+    @Option
+    var port: Int
+    
+    @Option
+    var masterPort: Int?
+    
+    @Option
+    var name: String
+    
+    mutating func run() async throws {
+        let playgroundNode = await ClusterSystem(name) { settings in
+            settings.bindHost = "127.0.0.1"
+            settings.bindPort = port
+        }
+        
+        if (masterPort != nil) {
+            playgroundNode.cluster.join(host: "127.0.0.1", port: masterPort!)
+            try await ensureCluster(playgroundNode, within: .seconds(10))
+        }
+        
+        let nodeA = await PlaygroundNode(actorSystem: playgroundNode)
+        
+        Task {
+            try await nodeA.listen()
         }
         
         Task {
-            for await event in system.cluster.events {
-                switch event {
-                case .snapshot(let membership):
-                    print("[cluster][snapshot]: \(membership)")
-                    break
-                case .membershipChange(let change):
-                    print("[cluster][membership-change]: \(change)")
-                    break
-                case .reachabilityChange(let change):
-                    print("[cluster][reachability-change]: \(change)")
-                    break
-                case .leadershipChange(let change):
-                    print("[cluster][leadership-change]: \(change)")
-                    break
-                default:
-                    print("[cluster][unknown]")
-                    break
-                }
+            while true {
+                try await nodeA.ping(message: UUID().uuidString)
+                try await Task.sleep(for: .seconds(1))
             }
         }
         
-//        let nodeName = UUID()
-//        let node = Node(name: nodeName, actorSystem: system)
-//        await system.receptionist.checkIn(node, with: .nodes)
-//        
-//        let runTask = Task {
-//            while true {
-//                let newCount = try await node.increment()
-//                for await neighbor in await system.receptionist.listing(of: .nodes) {
-//                    try await neighbor.update(who: nodeName, with: newCount)
-//                }
-//                try await Task.sleep(for: .seconds(1))
-//            }
-//        }
-//        
-//        Task {
-//            try await Task.sleep(for: .seconds(30))
-//            runTask.cancel()
-//            try system.shutdown()
-//        }
-//        
-//        print("Node \(nodeName) up and running")
-
-        try await system.terminated
+        try await playgroundNode.terminated
     }
 }
