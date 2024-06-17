@@ -41,30 +41,37 @@ struct EfficientBroadcast {
         let node = Node()
         
         Task {
-            try await node.gossip(every: .milliseconds(40))
+            do {
+                try await node.gossip()
+            } catch {
+                print("gossip error: \(error)")
+            }
         }
         
         while let line = readLine(strippingNewline: true) {
             let data = line.data(using: .utf8)!
             let decoder = JSONDecoder()
-            let message = try decoder.decode(MaelstromMessage.self, from: data)
-            stderr.write("received: \(message)\n")
-            
-            switch message.body {
-            case .initMessage(let initMessage):
-                try await node.handleInit(message: message, body: initMessage)
-            case .topologyMessage(let topologyMessage):
-                try await node.handleTopology(message: message, body: topologyMessage)
-            case .broadcastMessage(let broadcastMessage):
-                try await node.handleBroadcast(message: message, body: broadcastMessage)
-            case .readMessage(let readMessage):
-                try await node.handleRead(message: message, body: readMessage)
-            case .gossipMessage(let gossipMessage):
-                try await node.handleGossip(message: message, body: gossipMessage)
-            case .gossipOkMessage(let gossipOkMessage):
-                await node.handleGossipOk(message: message, body: gossipOkMessage)
+            let req = try decoder.decode(MaelstromMessage.self, from: data)
+//            stderr.write("received: \(req.body.type)\n")
+    
+            switch req.body {
+            case .initMessage(let body):
+                try await node.handleInit(req: req, body: body)
+                break
+            case .topologyMessage(let body):
+                try await node.handleTopology(req: req, body: body)
+                break
+            case .broadcastMessage(let body):
+                try await node.handleBroadcast(req: req, body: body)
+                break
+            case .readMessage(let body):
+                try await node.handleRead(req: req, body: body)
+                break
+            case .gossipMessage(let body):
+                try await node.handleGossip(req: req, body: body)
+                break
             default:
-                stderr.write("no message handler for type: \(message.body.type)\n")
+                stderr.write("no message handler for type: \(req.body.type)\n")
             }
         }
     }

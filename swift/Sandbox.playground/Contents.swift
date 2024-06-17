@@ -1,18 +1,12 @@
 import Foundation
 
-var setA: Set<Int> = [1, 2, 3, 4]
-var setB: Set<Int> = [3, 4, 5, 6]
+var tasks: [Int:Bool] = [:]
 
-setA == setB
+tasks[1] = false
+tasks[2] = true
 
-let addToB = setA.subtracting(setB)
-let addToA = setB.subtracting(setA)
+print(tasks.count)
 
-setA.formUnion(addToA)
-setB.formUnion(addToB)
+tasks.removeValue(forKey: 1)
 
-setA == setB
-
-var setC: Set<Int> = [1, 2, 3, 4, 5]
-
-setA.subtracting(setC)
+print(tasks.count)

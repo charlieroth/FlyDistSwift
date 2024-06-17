@@ -6,18 +6,25 @@
 //
 
 import Foundation
+import AsyncAlgorithms
 
-enum BroadcastError: Error {
+enum NodeError: Error {
     case emptyTopology
+    case rpcError
+    case rpcInvalidMessage
+    case rpcNoResponse
 }
+
+let maxRetry = 100
+let retrySleepDuration = Duration.seconds(1)
 
 actor Node {
     var stderr: StandardError
     var stdout: StandardOut
     
     var id: String? = nil
-    var nodeIds: [String]? = nil
-    var topology: [String:[String]] = [:]
+    var nodeIds: [String] = []
+    var neighbors: [String] = []
     var messages: Set<Int>
     var nextMsgId: Int
     
@@ -28,158 +35,125 @@ actor Node {
         self.messages = Set()
     }
     
-    func gossip(every duration: Duration) async throws {
+    func gossip() async throws {
         while true {
-            try await Task.sleep(for: duration)
-            if self.id == nil || self.topology.isEmpty {
+            try await Task.sleep(for: .milliseconds(200))
+            if self.neighbors.isEmpty || self.messages.isEmpty {
                 continue
             }
             
-            guard let neighbors = self.topology[self.id!] else {
-               self.stderr.write("no topology for node id \(self.id!)")
-               continue
-            }
-            
-            // gossip messages to neighbors
             let messages = self.messages
-            for nodeId in neighbors {
-                try self.send(message:
-                    MaelstromMessage(
-                        src: self.id!,
-                        dest: nodeId,
-                        body: .gossipMessage(
-                            GossipMessage(
-                                type: "gossip",
-                                messages: messages
-                            )
-                        )
+            for neighbor in self.neighbors {
+                try self.send(
+                    dest: neighbor,
+                    body: .gossipMessage(
+                        GossipMessage(type: "gossip", messages: messages)
                     )
                 )
             }
         }
     }
     
-    func handleInit(message: MaelstromMessage, body: InitMessage) throws {
+    func handleInit(req: MaelstromMessage, body: InitMessage) throws {
         self.id = body.node_id
         self.nodeIds = body.node_ids
-        let reply = MaelstromMessage(
-            src: self.id!,
-            dest: message.src,
+        try self.reply(
+            req: req,
             body: .initOkMessage(
                 InitOkMessage(
                     type: "init_ok",
-                    in_reply_to: body.msg_id,
-                    msg_id: self.nextMsgId
+                    in_reply_to: body.msg_id
                 )
             )
         )
-        try self.reply(message: reply)
     }
     
-    func handleTopology(message: MaelstromMessage, body: TopologyMessage) throws {
-        self.stderr.write("received topology: \(body)\n")
-        self.topology = body.topology
-        let reply = MaelstromMessage(
-            src: self.id!,
-            dest: message.src,
+    func handleTopology(req: MaelstromMessage, body: TopologyMessage) throws {
+        // Create star topology
+        if self.id == "n0" {
+            self.neighbors = Array(1...24).map({ n in "n\(n)" })
+        } else {
+            self.neighbors = ["n0"]
+        }
+        
+        try self.reply(
+            req: req,
             body: .topologyOkMessage(
                 TopologyOkMessage(
                     type: "topology_ok",
-                    msg_id: self.nextMsgId,
                     in_reply_to: body.msg_id
                 )
             )
         )
-        try self.reply(message: reply)
     }
     
-    func handleBroadcast(message: MaelstromMessage, body: BroadcastMessage) async throws {
+    func handleGossip(req: MaelstromMessage, body: GossipMessage) async throws {
+        self.messages.formUnion(body.messages)
+    }
+    
+    func handleBroadcast(req: MaelstromMessage, body: BroadcastMessage) async throws {
         self.messages.insert(body.message)
-        
-        guard let neighbors = self.topology[self.id!] else {
-           self.stderr.write("no topology for node id \(self.id!)")
-            throw BroadcastError.emptyTopology
-        }
-        
-        let reply = MaelstromMessage(
-            src: self.id!,
-            dest: message.src,
+        try self.reply(
+            req: req,
             body: .broadcastOkMessage(
                 BroadcastOkMessage(
                     type: "broadcast_ok",
-                    msg_id: self.nextMsgId,
-                    in_reply_to: body.msg_id
+                    in_reply_to: body.msg_id!
                 )
             )
         )
-        try self.reply(message: reply)
     }
     
-    func handleRead(message: MaelstromMessage, body: ReadMessage) async throws {
-        let reply = MaelstromMessage(
-            src: self.id!,
-            dest: message.src,
+    func handleRead(req: MaelstromMessage, body: ReadMessage) throws {
+        try self.reply(
+            req: req,
             body: .readOkMessage(
                 ReadOkMessage(
                     type: "read_ok",
-                    msg_id: self.nextMsgId,
                     in_reply_to: body.msg_id,
                     messages: self.messages
                 )
             )
         )
-        try self.reply(message: reply)
     }
     
-    func handleGossip(message: MaelstromMessage, body: GossipMessage) async throws {
-        var incomingSet = body.messages
-        var currentSet = self.messages
-        
-        // If sets are the same, no reply required
-        if currentSet == incomingSet {
-            return
-        }
-        
-        let messagesForNode = incomingSet.subtracting(currentSet)
-        if !messagesForNode.isEmpty {
-            self.messages.formUnion(messagesForNode)
-        }
-        
-        let messagesForSource = currentSet.subtracting(incomingSet)
-        if messagesForSource.isEmpty {
-            return
-        }
-        
-        try self.send(message:
-            MaelstromMessage(
-                src: self.id!,
-                dest: message.src,
-                body: .gossipOkMessage(
-                    GossipOkMessage(
-                        type: "gossip_ok",
-                        messages: messagesForSource
-                    )
-                )
-            )
-        )
+    //    private func syncRpc(dest: String, body: BroadcastMessage) async throws -> BroadcastOkMessage {
+    //        let responseChannel: AsyncChannel<BroadcastOkMessage> = AsyncChannel()
+    //        self.tasks[body.msg_id!] = responseChannel
+    //
+    //        try self.rpc(dest: dest, body: body)
+    //
+    //        for await msg in responseChannel {
+    //            self.stderr.write("received response on responseChannel \n")
+    //            return msg
+    //        }
+    //
+    //        throw NodeError.rpcNoResponse
+    //    }
+    //
+    //    private func rpc(dest: String, body: BroadcastMessage) throws {
+    //        self.nextMsgId += 1
+    //        let msgId = self.nextMsgId
+    //
+    //        var bodyWithUpdatedMsgId = body
+    //        bodyWithUpdatedMsgId.msg_id = msgId
+    //
+    //        try self.send(
+    //            dest: dest,
+    //            body: .broadcastMessage(bodyWithUpdatedMsgId)
+    //        )
+    //    }
+    
+    private func reply(req: MaelstromMessage, body: MessageType) throws {
+        try self.send(dest: req.src, body: body)
     }
     
-    func handleGossipOk(message: MaelstromMessage, body: GossipOkMessage) {
-        self.messages.formUnion(body.messages)
-    }
-    
-    private func reply(message: MaelstromMessage) throws {
-        self.nextMsgId += 1
-        try self.send(message: message)
-    }
-    
-    private func send(message: MaelstromMessage) throws {
+    private func send(dest: String, body: MessageType) throws {
+        let message = MaelstromMessage(src: self.id!, dest: dest, body: body)
         let messageData = try JSONEncoder().encode(message)
         guard let messageString = String(data: messageData, encoding: .utf8) else {
-            self.stderr.write("failed to stringify reply message\n")
             return
         }
-        self.stdout.write(messageString)
-        self.stdout.write("\n")
+        self.stdout.write("\(messageString)\n")
     }
 }

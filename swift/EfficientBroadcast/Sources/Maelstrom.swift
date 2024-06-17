@@ -7,70 +7,73 @@
 
 import Foundation
 
+
 struct InitMessage: Codable {
     let type: String
-    let msg_id: Int
+    var msg_id: Int?
+    var in_reply_to: Int?
     let node_id: String
     let node_ids: [String]
 }
 
 struct InitOkMessage: Codable {
     let type: String
-    let in_reply_to: Int
-    let msg_id: Int?
+    var msg_id: Int?
+    var in_reply_to: Int?
 }
 
 struct TopologyMessage: Codable {
     let type: String
-    let msg_id: Int
+    var msg_id: Int?
+    var in_reply_to: Int?
     let topology: [String:[String]]
 }
 
 struct TopologyOkMessage: Codable {
     let type: String
-    let msg_id: Int?
-    let in_reply_to: Int
+    var msg_id: Int?
+    var in_reply_to: Int?
 }
 
 struct BroadcastMessage: Codable {
     let type: String
-    var msg_id: Int
+    var msg_id: Int?
+    var in_reply_to: Int?
     let message: Int
 }
 
 struct BroadcastOkMessage: Codable {
     let type: String
-    let msg_id: Int?
-    let in_reply_to: Int
+    var msg_id: Int?
+    var in_reply_to: Int
 }
 
 struct ReadMessage: Codable {
     let type: String
-    let msg_id: Int
+    var msg_id: Int?
+    var in_reply_to: Int?
 }
 
 struct ReadOkMessage: Codable {
     let type: String
-    let msg_id: Int?
-    let in_reply_to: Int
-    let messages: Set<Int>
-}
-
-struct GossipMessage: Codable {
-    let type: String
-    let messages: Set<Int>
-}
-
-struct GossipOkMessage: Codable {
-    let type: String
+    var msg_id: Int?
+    var in_reply_to: Int?
     let messages: Set<Int>
 }
 
 struct ErrorMessage: Codable {
     let type: String
-    let in_reply_to: Int
+    var msg_id: Int?
+    var in_reply_to: Int?
     let code: Int
     let text: String?
+}
+
+struct GossipMessage: Codable {
+    let type: String
+    var msg_id: Int?
+    var in_reply_to: Int?
+    let messages: Set<Int>
 }
 
 enum MessageType: Codable {
@@ -82,9 +85,8 @@ enum MessageType: Codable {
     case broadcastOkMessage(BroadcastOkMessage)
     case readMessage(ReadMessage)
     case readOkMessage(ReadOkMessage)
-    case gossipMessage(GossipMessage)
-    case gossipOkMessage(GossipOkMessage)
     case errorMessage(ErrorMessage)
+    case gossipMessage(GossipMessage)
 
     var type: String {
         switch self {
@@ -96,9 +98,8 @@ enum MessageType: Codable {
         case .broadcastOkMessage: return "broadcast_ok"
         case .readMessage: return "read"
         case .readOkMessage: return "read_ok"
-        case .gossipMessage: return "gossip"
-        case .gossipOkMessage: return "gossip_ok"
         case .errorMessage: return "error"
+        case .gossipMessage: return "gossip"
         }
     }
 
@@ -160,24 +161,18 @@ enum MessageType: Codable {
                 from: jsonData
             )
             self = .readOkMessage(decodedMessage)
-        case "gossip":
-            let decodedMessage = try jsonDecoder.decode(
-                GossipMessage.self,
-                from: jsonData
-            )
-            self = .gossipMessage(decodedMessage)
-        case "gossip_ok":
-            let decodedMessage = try jsonDecoder.decode(
-                GossipOkMessage.self,
-                from: jsonData
-            )
-            self = .gossipOkMessage(decodedMessage)
         case "error":
             let decodedMessage = try jsonDecoder.decode(
                 ErrorMessage.self,
                 from: jsonData
             )
             self = .errorMessage(decodedMessage)
+        case "gossip":
+            let decodedMessage = try jsonDecoder.decode(
+                GossipMessage.self,
+                from: jsonData
+            )
+            self = .gossipMessage(decodedMessage)
         default:
             throw DecodingError.dataCorrupted(
                 DecodingError.Context(
@@ -208,11 +203,9 @@ enum MessageType: Codable {
             try container.encode(message)
         case .readOkMessage(let message):
             try container.encode(message)
-        case .gossipMessage(let message):
-            try container.encode(message)
-        case .gossipOkMessage(let message):
-            try container.encode(message)
         case .errorMessage(let message):
+            try container.encode(message)
+        case .gossipMessage(let message):
             try container.encode(message)
         }
     }
@@ -220,8 +213,8 @@ enum MessageType: Codable {
 
 // Base structure for a Maelstrom message
 struct MaelstromMessage: Codable {
-    let src: String
-    let dest: String
+    var src: String
+    var dest: String
     var body: MessageType
 }
 
