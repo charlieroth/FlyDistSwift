@@ -8,59 +8,64 @@
 import Foundation
 
 struct InitMessage: Codable {
-    let type: String
-    let msg_id: Int
-    let node_id: String
-    let node_ids: [String]
+    var type: String
+    var msg_id: Int?
+    var node_id: String
+    var node_ids: [String]
+    var in_reply_to: Int?
 }
 
 struct InitOkMessage: Codable {
-    let type: String
-    let in_reply_to: Int
-    let msg_id: Int?
+    var type: String
+    var in_reply_to: Int?
+    var msg_id: Int?
 }
 
 struct TopologyMessage: Codable {
-    let type: String
-    let msg_id: Int
-    let topology: [String:[String]]
+    var type: String
+    var topology: [String:[String]]
+    var in_reply_to: Int?
+    var msg_id: Int?
 }
 
 struct TopologyOkMessage: Codable {
-    let type: String
-    let msg_id: Int?
-    let in_reply_to: Int
+    var type: String
+    var in_reply_to: Int?
+    var msg_id: Int?
 }
 
 struct BroadcastMessage: Codable {
-    let type: String
-    let msg_id: Int
-    let message: Int
+    var type: String
+    var message: Int
+    var in_reply_to: Int?
+    var msg_id: Int?
 }
 
 struct BroadcastOkMessage: Codable {
-    let type: String
-    let msg_id: Int?
-    let in_reply_to: Int
+    var type: String
+    var in_reply_to: Int?
+    var msg_id: Int?
 }
 
 struct ReadMessage: Codable {
-    let type: String
-    let msg_id: Int
+    var type: String
+    var in_reply_to: Int?
+    var msg_id: Int?
 }
 
 struct ReadOkMessage: Codable {
-    let type: String
-    let msg_id: Int?
-    let in_reply_to: Int
-    let messages: [Int]
+    var type: String
+    var messages: Set<Int>
+    var in_reply_to: Int?
+    var msg_id: Int?
 }
 
 struct ErrorMessage: Codable {
-    let type: String
-    let in_reply_to: Int
-    let code: Int
-    let text: String?
+    var type: String
+    var code: Int
+    var text: String?
+    var in_reply_to: Int?
+    var msg_id: Int?
 }
 
 enum MessageType: Codable {
