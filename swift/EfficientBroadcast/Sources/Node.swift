@@ -37,7 +37,7 @@ actor Node {
     
     func gossip() async throws {
         while true {
-            try await Task.sleep(for: .milliseconds(200))
+            try await Task.sleep(for: .milliseconds(50))
             if self.neighbors.isEmpty || self.messages.isEmpty {
                 continue
             }
@@ -116,33 +116,6 @@ actor Node {
             )
         )
     }
-    
-    //    private func syncRpc(dest: String, body: BroadcastMessage) async throws -> BroadcastOkMessage {
-    //        let responseChannel: AsyncChannel<BroadcastOkMessage> = AsyncChannel()
-    //        self.tasks[body.msg_id!] = responseChannel
-    //
-    //        try self.rpc(dest: dest, body: body)
-    //
-    //        for await msg in responseChannel {
-    //            self.stderr.write("received response on responseChannel \n")
-    //            return msg
-    //        }
-    //
-    //        throw NodeError.rpcNoResponse
-    //    }
-    //
-    //    private func rpc(dest: String, body: BroadcastMessage) throws {
-    //        self.nextMsgId += 1
-    //        let msgId = self.nextMsgId
-    //
-    //        var bodyWithUpdatedMsgId = body
-    //        bodyWithUpdatedMsgId.msg_id = msgId
-    //
-    //        try self.send(
-    //            dest: dest,
-    //            body: .broadcastMessage(bodyWithUpdatedMsgId)
-    //        )
-    //    }
     
     private func reply(req: MaelstromMessage, body: MessageType) throws {
         try self.send(dest: req.src, body: body)

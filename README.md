@@ -100,7 +100,7 @@ languages for building concurrent, distributed systems.
 - [x] Challenge 3a: Single-Node Broadcast
 - [x] Challenge 3b: Multi-Node Broadcast
 - [x] Challenge 3c: Fault Tolerant Broadcast
-- [ ] (TODO) Challenge 3d: Efficient Broadcast, Part 1
+- [x] Challenge 3d: Efficient Broadcast, Part 1
 - [ ] (TODO) Challenge 3e: Efficient Broadcast, Part 2
 - [ ] Challenge 4: Grow-Only Counter
 - [ ] Challenge 5a: Single-Node Kafka-Style Log
