@@ -87,15 +87,6 @@ actor BroadcastNode {
     func broadcast(message: BroadcastMessage) async throws -> Void {
         print("[\(self.id)]: received broadcast from \(message.src)")
         
-        if self.messages.contains(message.message) == false {
-            
-        }
-        self.messages.insert(message.message)
-        
-        Task {
-            
-        }
-        
         if let respondNode = self.nodes[message.src] {
             self.send(
                 dest: message.src,
@@ -108,9 +99,16 @@ actor BroadcastNode {
         } else {
             print("[\(self.id)]: Failed to find actor in nodes by id: \(message.src)")
         }
+        
+        if !self.messages.contains(message.message) {
+            self.messages.insert(message.message)
+        }
+        
+        self.gossip(message: message)
     }
     
     func gossip(message: BroadcastMessage) {
+        print("[\(self.id)]: nodes \(self.nodes)")
         for (nodeId, node) in self.nodes {
             if nodeId == self.id || nodeId == message.src {
                 continue
@@ -118,7 +116,7 @@ actor BroadcastNode {
             
             Task {
                 for i in 0..<10 {
-                    print("[\(self.id)]: Attempting rpc call \(i) for \(message.msg_id)")
+                    print("[\(self.id)]: Attempting rpc call to \(nodeId)")
                     do {
                         let msg = try await self.syncRpc(node: node, message: message)
                         switch msg {
@@ -143,7 +141,7 @@ actor BroadcastNode {
                             break
                         }
                     } catch {
-                        print("Exiting rpc retry loop")
+                        print("[\(self.id)]: Exiting rpc retry loop")
                         break
                     }
                 }
@@ -186,16 +184,18 @@ actor BroadcastNode {
         let responseChannel: AsyncChannel<Message> = AsyncChannel()
         self.tasks[message.msg_id] = responseChannel
         
-        for await msg in responseChannel {
-            print("[\(self.id)]: received message on response channel - \(msg)")
-            switch msg {
-            case .broadcastOk:
-                return msg
-            case .error:
-                return msg
-            default:
-                print("[\(self.id)]: error, received invalid message on response channel")
-                throw NodeError.rpcInvalidMessage
+        await withCheckedContinuation { continuation in
+            for await msg in responseChannel {
+                print("[\(self.id)]: received message on response channel - \(msg)")
+                switch msg {
+                case .broadcastOk:
+                    continuation.resume(returning: msg)
+                case .error:
+                    continuation.resume(returning: msg)
+                default:
+                    print("[\(self.id)]: error, received invalid message on response channel")
+                    throw NodeError.rpcInvalidMessage
+                }
             }
         }
         
