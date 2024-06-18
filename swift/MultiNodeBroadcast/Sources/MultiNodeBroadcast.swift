@@ -12,29 +12,35 @@ struct MultiNodeBroadcast {
     static func main() async throws {
         let stderr = StandardError()
         let node = Node()
-        
-        Task {
-            await node.broadcast(every: .milliseconds(400))
-        }
-        
         while let line = readLine(strippingNewline: true) {
             let data = line.data(using: .utf8)!
             let decoder = JSONDecoder()
-            let message = try decoder.decode(MaelstromMessage.self, from: data)
-            stderr.write("received: \(message)\n")
-            switch message.body {
-            case .initMessage(let initMessage):
-                try await node.handleInit(message: message, body: initMessage)
-            case .topologyMessage(let topologyMessage):
-                try await node.handleTopology(message: message, body: topologyMessage)
-            case .broadcastMessage(let broadcastMessage):
-                try await node.handleBroadcast(message: message, body: broadcastMessage)
-            case .readMessage(let readMessage):
-                try await node.handleRead(message: message, body: readMessage)
-            case .gossipMessage(let gossipMessage):
-                try await node.handleGossip(message: message, body: gossipMessage)
+            let req = try decoder.decode(MaelstromMessage.self, from: data)
+            
+            switch req.body {
+            case .initMessage(let body):
+                Task {
+                    try await node.handleInit(req: req, body: body)
+                }
+                break
+            case .topologyMessage(let body):
+                Task {
+                    try await node.handleTopology(req: req, body: body)
+                }
+                break
+            case .broadcastMessage(let body):
+                Task {
+                    try await node.handleBroadcast(req: req, body: body)
+                }
+                break
+            case .readMessage(let body):
+                Task {
+                    try await node.handleRead(req: req, body: body)
+                }
+                break
             default:
-                stderr.write("no message handler for type: \(message.body.type)\n")
+                stderr.write("no message handler for type: \(req.body.type)\n")
+                break
             }
         }
     }

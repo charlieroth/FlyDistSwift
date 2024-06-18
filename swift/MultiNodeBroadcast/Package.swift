@@ -7,9 +7,15 @@ let package = Package(
     platforms: [
         .macOS(.v14)
     ],
+    dependencies: [
+        .package(url: "https://github.com/apple/swift-async-algorithms.git", from: "1.0.0")
+    ],
     targets: [
         .executableTarget(
             name: "MultiNodeBroadcast",
+            dependencies: [
+                .product(name: "AsyncAlgorithms", package: "swift-async-algorithms")
+            ],
             path: "Sources"
         ),
     ]

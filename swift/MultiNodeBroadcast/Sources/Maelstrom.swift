@@ -6,66 +6,66 @@
 //
 
 import Foundation
+import AsyncAlgorithms
 
 struct InitMessage: Codable {
-    let type: String
-    let msg_id: Int
-    let node_id: String
-    let node_ids: [String]
+    var type: String
+    var node_id: String
+    var node_ids: [String]
+    var msg_id: Int?
+    var in_reply_to: Int?
 }
 
 struct InitOkMessage: Codable {
-    let type: String
-    let in_reply_to: Int
-    let msg_id: Int?
+    var type: String
+    var msg_id: Int?
+    var in_reply_to: Int?
 }
 
 struct TopologyMessage: Codable {
-    let type: String
-    let msg_id: Int
-    let topology: [String:[String]]
+    var type: String
+    var topology: [String:[String]]
+    var msg_id: Int?
+    var in_reply_to: Int?
 }
 
 struct TopologyOkMessage: Codable {
-    let type: String
-    let msg_id: Int?
-    let in_reply_to: Int
+    var type: String
+    var msg_id: Int?
+    var in_reply_to: Int?
 }
 
 struct BroadcastMessage: Codable {
-    let type: String
-    let msg_id: Int
-    let message: Int
+    var type: String
+    var message: Int
+    var msg_id: Int?
+    var in_reply_to: Int?
 }
 
 struct BroadcastOkMessage: Codable {
-    let type: String
-    let msg_id: Int?
-    let in_reply_to: Int
+    var type: String
+    var msg_id: Int?
+    var in_reply_to: Int?
 }
 
 struct ReadMessage: Codable {
-    let type: String
-    let msg_id: Int
+    var type: String
+    var msg_id: Int?
+    var in_reply_to: Int?
 }
 
 struct ReadOkMessage: Codable {
-    let type: String
-    let msg_id: Int?
-    let in_reply_to: Int
-    let messages: [Int]
-}
-
-struct GossipMessage: Codable {
-    let type: String
-    let messages: [Int]
+    var type: String
+    var messages: Set<Int>
+    var msg_id: Int?
+    var in_reply_to: Int?
 }
 
 struct ErrorMessage: Codable {
-    let type: String
-    let in_reply_to: Int
-    let code: Int
-    let text: String?
+    var type: String
+    var code: Int
+    var text: String?
+    var in_reply_to: Int?
 }
 
 enum MessageType: Codable {
@@ -77,7 +77,6 @@ enum MessageType: Codable {
     case broadcastOkMessage(BroadcastOkMessage)
     case readMessage(ReadMessage)
     case readOkMessage(ReadOkMessage)
-    case gossipMessage(GossipMessage)
     case errorMessage(ErrorMessage)
 
     var type: String {
@@ -90,7 +89,6 @@ enum MessageType: Codable {
         case .broadcastOkMessage: return "broadcast_ok"
         case .readMessage: return "read"
         case .readOkMessage: return "read_ok"
-        case .gossipMessage: return "gossip"
         case .errorMessage: return "error"
         }
     }
@@ -153,12 +151,6 @@ enum MessageType: Codable {
                 from: jsonData
             )
             self = .readOkMessage(decodedMessage)
-        case "gossip":
-            let decodedMessage = try jsonDecoder.decode(
-                GossipMessage.self,
-                from: jsonData
-            )
-            self = .gossipMessage(decodedMessage)
         case "error":
             let decodedMessage = try jsonDecoder.decode(
                 ErrorMessage.self,
@@ -194,8 +186,6 @@ enum MessageType: Codable {
         case .readMessage(let message):
             try container.encode(message)
         case .readOkMessage(let message):
-            try container.encode(message)
-        case .gossipMessage(let message):
             try container.encode(message)
         case .errorMessage(let message):
             try container.encode(message)
