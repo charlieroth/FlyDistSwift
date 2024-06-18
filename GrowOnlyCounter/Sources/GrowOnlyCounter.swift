@@ -12,6 +12,11 @@ struct GrowOnlyCounter {
     static func main() async throws {
         let stderr = StandardError()
         let node = Node()
+        
+        Task {
+            try await node.gossip(every: .milliseconds(500))
+        }
+        
         while let line = readLine(strippingNewline: true) {
             let data = line.data(using: .utf8)!
             let decoder = JSONDecoder()
@@ -19,31 +24,17 @@ struct GrowOnlyCounter {
             
             switch req.body {
             case .initMessage(let body):
-                Task {
-                    try await node.handleInit(req: req, body: body)
-                }
+                try await node.handleInit(req: req, body: body)
                 break
-            case .topologyMessage(let body):
-                Task {
-                    try await node.handleTopology(req: req, body: body)
-                }
-                break
-            case .broadcastMessage(let body):
-                Task {
-                    try await node.handleBroadcast(req: req, body: body)
-                }
-                break
-            case .broadcastOkMessage(let body):
-                if let msgId = body.in_reply_to {
-                    if let rpcNode = await node.callbacks[msgId] {
-                            await rpcNode.received(msg: body)
-                            await node.removeCallback(msgId: msgId)
-                    }
-                }
+            case .addMessage(let body):
+                try await node.handleAdd(req: req, body: body)
                 break
             case .readMessage(let body):
+                try await node.handleRead(req: req, body: body)
+                break
+            case .gossipMessage(let body):
                 Task {
-                    try await node.handleRead(req: req, body: body)
+                    try await node.handleGossip(req: req, body: body)
                 }
                 break
             default:

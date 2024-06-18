@@ -6,7 +6,53 @@
 //
 
 import Foundation
-import AsyncAlgorithms
+
+struct Counter: Codable {
+    var version: Int = 0
+    var value: Int = 0
+}
+
+// https://martinfowler.com/articles/patterns-of-distributed-systems/version-vector.html
+// https://en.wikipedia.org/wiki/Version_vector
+// https://github.com/elh/gossip-glomers/blob/main/src/4_grow_only_counter.clj
+actor KV {
+    var counters: [String:Counter]
+    
+    init() {
+        self.counters = [:]
+    }
+    
+    init(nodeIds: [String]) {
+        self.counters = [:]
+        
+        for nodeId in nodeIds {
+            self.counters[nodeId] = Counter()
+        }
+    }
+    
+    func add(nodeId: String, delta: Int) -> Void {
+        let nodeCounter = self.counters[nodeId]!
+        self.counters[nodeId] = Counter(
+            version: nodeCounter.version + 1,
+            value: nodeCounter.value + delta
+        )
+    }
+    
+    func read() -> Int {
+        return self.counters.values.reduce(0, { acc, curr in
+            acc + curr.value
+        })
+    }
+    
+    func merge(with incoming: [String:Counter]) -> Void {
+        for (nodeId, incomingCounter) in incoming {
+            let currentCounter = self.counters[nodeId]!
+            if incomingCounter.version > currentCounter.version {
+                self.counters[nodeId] = incomingCounter
+            }
+        }
+    }
+}
 
 actor Node {
     var stderr: StandardError
@@ -14,25 +60,43 @@ actor Node {
     
     var id: String? = nil
     var nodeIds: [String] = []
-    var topology: [String:[String]] = [:]
-    var messages: Set<Int> = Set()
-    var nextMsgId: Int
-    var callbacks: [Int:RpcNode] = [:]
+    var kv: KV = KV()
     
     init() {
         self.stderr = StandardError()
         self.stdout = StandardOut()
-        self.nextMsgId = 0
     }
     
-    func removeCallback(msgId: Int) {
-        self.callbacks.removeValue(forKey: msgId)
+    func gossip(every sleepFor: Duration) async throws {
+        while true {
+            let counters = await self.kv.counters
+            if counters.isEmpty {
+                try await Task.sleep(for: sleepFor)
+                continue
+            }
+            
+            for nodeId in self.nodeIds {
+                if nodeId == self.id! { continue }
+                
+                try self.send(
+                    dest: nodeId,
+                    body: .gossipMessage(
+                        GossipMessage(
+                            type: "gossip",
+                            counters: counters
+                        )
+                    )
+                )
+            }
+            try await Task.sleep(for: sleepFor)
+        }
     }
     
-    func handleInit(req: MaelstromMessage, body: InitMessage) throws {
+    func handleInit(req: MaelstromMessage, body: InitMessage) async throws {
         self.id = body.node_id
         self.nodeIds = body.node_ids
-        
+        self.kv = KV(nodeIds: body.node_ids)
+
         try self.reply(
             req: req,
             body: .initOkMessage(
@@ -44,119 +108,35 @@ actor Node {
         )
     }
     
-    func handleTopology(req: MaelstromMessage, body: TopologyMessage) throws {
-        self.topology = body.topology
-        try self.reply(
-            req: req,
-            body: .topologyOkMessage(
-                TopologyOkMessage(
-                    type: "topology_ok",
-                    in_reply_to: body.msg_id
-                )
-            )
-        )
-    }
-    
-    func handleRead(req: MaelstromMessage, body: ReadMessage) throws {
-        let messages = self.messages
+    func handleRead(req: MaelstromMessage, body: ReadMessage) async throws {
+        let value = await self.kv.read()
         try self.reply(
             req: req,
             body: .readOkMessage(
                 ReadOkMessage(
                     type: "read_ok",
-                    messages: messages,
+                    value: value,
                     in_reply_to: body.msg_id
                 )
             )
         )
     }
     
-    func handleBroadcast(req: MaelstromMessage, body: BroadcastMessage) async throws {
+    func handleAdd(req: MaelstromMessage, body: AddMessage) async throws {
+        await self.kv.add(nodeId: self.id!, delta: body.delta)
         try self.reply(
             req: req,
-            body: .broadcastOkMessage(
-                BroadcastOkMessage(
-                    type: "broadcast_ok",
+            body: .addOkMessage(
+                AddOkMessage(
+                    type: "add_ok",
                     in_reply_to: body.msg_id
                 )
             )
         )
-        
-        if self.messages.contains(body.message) { return }
-        
-        self.messages.insert(body.message)
-        try await broadcast(req: req, body: body)
     }
     
-    private func broadcast(req: MaelstromMessage, body: BroadcastMessage) async throws {
-        guard let currentNodeId = self.id else {
-            fatalError("current node not initialized\n")
-        }
-        
-        guard let topology = self.topology[currentNodeId] else {
-            fatalError("broadcast requires topology, no topology for \(currentNodeId)\n")
-        }
-        
-        var nodesToBroadcastTo: Set<String> = Set(topology)
-        while !nodesToBroadcastTo.isEmpty {
-            await withTaskGroup(of: String?.self) { group in
-                for nodeId in nodesToBroadcastTo {
-                    group.addTask {
-                        do {
-                            let _ = try await self.syncRpc(dest: nodeId, body: body)
-                            return nodeId
-                        } catch {
-                            return nil
-                        }
-                    }
-                }
-                
-                for await ackedNode in group {
-                    if let node = ackedNode {
-                        nodesToBroadcastTo.remove(node)
-                    }
-                }
-            }
-            if nodesToBroadcastTo.isEmpty {
-                break
-            } else {
-                try await Task.sleep(for: .seconds(1))
-            }
-        }
-    }
-    
-    private func syncRpc(dest: String, body: BroadcastMessage) async throws -> BroadcastOkMessage {
-        let ch: AsyncChannel<BroadcastOkMessage> = AsyncChannel()
-        let rpcNode = RpcNode(ch: ch)
-        try await self.rpc(dest: dest, body: body, rpcNode: rpcNode)
-        
-        let rpcTask: Task<BroadcastOkMessage, Error> = Task {
-            for await msg in ch {
-                try Task.checkCancellation()
-                return msg
-            }
-            
-            throw NodeError.rpcFailure
-        }
-        
-        let timeoutTask = Task {
-            try await Task.sleep(for: .seconds(1))
-            rpcTask.cancel()
-        }
-        
-        let result = try await rpcTask.value
-        timeoutTask.cancel()
-        return result
-    }
-    
-    private func rpc(dest: String, body: BroadcastMessage, rpcNode: RpcNode) async throws {
-        self.nextMsgId += 1
-        let msgId = self.nextMsgId
-        self.callbacks[msgId] = rpcNode
-        
-        var bodyCopy = body
-        bodyCopy.msg_id = msgId
-        try self.send(dest: dest, body: .broadcastMessage(bodyCopy))
+    func handleGossip(req: MaelstromMessage, body: GossipMessage) async throws {
+        await self.kv.merge(with: body.counters)
     }
     
     private func reply(req: MaelstromMessage, body: MessageType) throws {

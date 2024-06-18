@@ -12,53 +12,42 @@ struct InitMessage: Codable {
     var type: String
     var node_id: String
     var node_ids: [String]
-    var msg_id: Int?
-    var in_reply_to: Int?
+    var msg_id: Int
 }
 
 struct InitOkMessage: Codable {
     var type: String
     var msg_id: Int?
-    var in_reply_to: Int?
-}
-
-struct TopologyMessage: Codable {
-    var type: String
-    var topology: [String:[String]]
-    var msg_id: Int?
-    var in_reply_to: Int?
-}
-
-struct TopologyOkMessage: Codable {
-    var type: String
-    var msg_id: Int?
-    var in_reply_to: Int?
-}
-
-struct BroadcastMessage: Codable {
-    var type: String
-    var message: Int
-    var msg_id: Int?
-    var in_reply_to: Int?
-}
-
-struct BroadcastOkMessage: Codable {
-    var type: String
-    var msg_id: Int?
-    var in_reply_to: Int?
+    var in_reply_to: Int
 }
 
 struct ReadMessage: Codable {
     var type: String
-    var msg_id: Int?
-    var in_reply_to: Int?
+    var msg_id: Int
 }
 
 struct ReadOkMessage: Codable {
     var type: String
-    var messages: Set<Int>
+    var value: Int
     var msg_id: Int?
-    var in_reply_to: Int?
+    var in_reply_to: Int
+}
+
+struct AddMessage: Codable {
+    var type: String
+    var delta: Int
+    var msg_id: Int
+}
+
+struct AddOkMessage: Codable {
+    var type: String
+    var msg_id: Int?
+    var in_reply_to: Int
+}
+
+struct GossipMessage: Codable {
+    var type: String
+    var counters: [String:Counter]
 }
 
 struct ErrorMessage: Codable {
@@ -71,24 +60,22 @@ struct ErrorMessage: Codable {
 enum MessageType: Codable {
     case initMessage(InitMessage)
     case initOkMessage(InitOkMessage)
-    case topologyMessage(TopologyMessage)
-    case topologyOkMessage(TopologyOkMessage)
-    case broadcastMessage(BroadcastMessage)
-    case broadcastOkMessage(BroadcastOkMessage)
     case readMessage(ReadMessage)
     case readOkMessage(ReadOkMessage)
+    case addMessage(AddMessage)
+    case addOkMessage(AddOkMessage)
+    case gossipMessage(GossipMessage)
     case errorMessage(ErrorMessage)
 
     var type: String {
         switch self {
         case .initMessage: return "init"
         case .initOkMessage: return "init_ok"
-        case .topologyMessage: return "topology"
-        case .topologyOkMessage: return "topology_ok"
-        case .broadcastMessage: return "broadcast"
-        case .broadcastOkMessage: return "broadcast_ok"
         case .readMessage: return "read"
         case .readOkMessage: return "read_ok"
+        case .addMessage: return "add"
+        case .addOkMessage: return "add_ok"
+        case .gossipMessage: return "gossip"
         case .errorMessage: return "error"
         }
     }
@@ -115,30 +102,6 @@ enum MessageType: Codable {
                 from: jsonData
             )
             self = .initOkMessage(decodedMessage)
-        case "topology":
-            let decodedMessage = try jsonDecoder.decode(
-                TopologyMessage.self,
-                from: jsonData
-            )
-            self = .topologyMessage(decodedMessage)
-        case "topology_ok":
-            let decodedMessage = try jsonDecoder.decode(
-                TopologyOkMessage.self,
-                from: jsonData
-            )
-            self = .topologyOkMessage(decodedMessage)
-        case "broadcast":
-            let decodedMessage = try jsonDecoder.decode(
-                BroadcastMessage.self,
-                from: jsonData
-            )
-            self = .broadcastMessage(decodedMessage)
-        case "broadcast_ok":
-            let decodedMessage = try jsonDecoder.decode(
-                BroadcastOkMessage.self,
-                from: jsonData
-            )
-            self = .broadcastOkMessage(decodedMessage)
         case "read":
             let decodedMessage = try jsonDecoder.decode(
                 ReadMessage.self,
@@ -151,6 +114,24 @@ enum MessageType: Codable {
                 from: jsonData
             )
             self = .readOkMessage(decodedMessage)
+        case "add":
+            let decodedMessage = try jsonDecoder.decode(
+                AddMessage.self,
+                from: jsonData
+            )
+            self = .addMessage(decodedMessage)
+        case "add_ok":
+            let decodedMessage = try jsonDecoder.decode(
+                AddOkMessage.self,
+                from: jsonData
+            )
+            self = .addOkMessage(decodedMessage)
+        case "gossip":
+            let decodedMessage = try jsonDecoder.decode(
+                GossipMessage.self,
+                from: jsonData
+            )
+            self = .gossipMessage(decodedMessage)
         case "error":
             let decodedMessage = try jsonDecoder.decode(
                 ErrorMessage.self,
@@ -175,17 +156,15 @@ enum MessageType: Codable {
             try container.encode(message)
         case .initOkMessage(let message):
             try container.encode(message)
-        case .topologyMessage(let message):
-            try container.encode(message)
-        case .topologyOkMessage(let message):
-            try container.encode(message)
-        case .broadcastMessage(let message):
-            try container.encode(message)
-        case .broadcastOkMessage(let message):
-            try container.encode(message)
         case .readMessage(let message):
             try container.encode(message)
         case .readOkMessage(let message):
+            try container.encode(message)
+        case .addMessage(let message):
+            try container.encode(message)
+        case .addOkMessage(let message):
+            try container.encode(message)
+        case .gossipMessage(let message):
             try container.encode(message)
         case .errorMessage(let message):
             try container.encode(message)
@@ -246,25 +225,5 @@ struct AnyCodable: Codable {
         } else {
             throw EncodingError.invalidValue(value, EncodingError.Context(codingPath: container.codingPath, debugDescription: "Unable to encode value"))
         }
-    }
-}
-
-enum NodeError: Error {
-    case rpcFailure
-}
-
-actor RpcNode {
-    var closed: Bool = false
-    var ch: AsyncChannel<BroadcastOkMessage>
-    
-    init(ch: AsyncChannel<BroadcastOkMessage>) {
-        self.ch = ch
-    }
-    
-    func received(msg: BroadcastOkMessage) async -> Void {
-
-        await self.ch.send(msg)
-        self.ch.finish()
-        self.closed = true
     }
 }
