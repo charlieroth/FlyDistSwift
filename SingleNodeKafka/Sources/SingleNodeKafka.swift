@@ -22,6 +22,18 @@ struct SingleNodeKafka {
             case .initMessage(let body):
                 try await node.handleInit(req: req, body: body)
                 break
+            case .sendMessage(let body):
+                try await node.handleSend(req: req, body: body)
+                break
+            case .pollMessage(let body):
+                try await node.handlePoll(req: req, body: body)
+                break
+            case .commitOffsetsMessage(let body):
+                try await node.handleCommitOffsets(req: req, body: body)
+                break
+            case .listCommittedOffsetsMessage(let body):
+                try await node.handleListCommittedOffsets(req: req, body: body)
+                break
             default:
                 stderr.write("no message handler for type: \(req.body.type)\n")
                 break

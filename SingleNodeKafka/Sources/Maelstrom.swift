@@ -21,6 +21,58 @@ struct InitOkMessage: Codable {
     var in_reply_to: Int
 }
 
+struct SendMessage: Codable {
+    var type: String
+    var key: String
+    var msg: Int
+    var msg_id: Int
+}
+
+struct SendOkMessage: Codable {
+    var type: String
+    var offset: Int
+    var msg_id: Int?
+    var in_reply_to: Int
+}
+
+struct PollMessage: Codable {
+    var type: String
+    var offsets: [String:Int]
+    var msg_id: Int
+}
+
+struct PollOkMessage: Codable {
+    var type: String
+    var msgs: [String:[[Int]]]
+    var msg_id: Int?
+    var in_reply_to: Int
+}
+
+struct CommitOffsetsMessage: Codable {
+    var type: String
+    var offsets: [String:Int]
+    var msg_id: Int
+}
+
+struct CommitOffsetsOkMessage: Codable {
+    var type: String
+    var msg_id: Int?
+    var in_reply_to: Int
+}
+
+struct ListCommittedOffsetsMessage: Codable {
+    var type: String
+    var keys: [String]
+    var msg_id: Int
+}
+
+struct ListCommittedOffsetsOkMessage: Codable {
+    var type: String
+    var offsets: [String:Int]
+    var msg_id: Int?
+    var in_reply_to: Int
+}
+
 struct ErrorMessage: Codable {
     var type: String
     var code: Int
@@ -32,12 +84,28 @@ enum MessageType: Codable {
     case initMessage(InitMessage)
     case initOkMessage(InitOkMessage)
     case errorMessage(ErrorMessage)
+    case pollMessage(PollMessage)
+    case pollOkMessage(PollOkMessage)
+    case sendMessage(SendMessage)
+    case sendOkMessage(SendOkMessage)
+    case commitOffsetsMessage(CommitOffsetsMessage)
+    case commitOffsetsOkMessage(CommitOffsetsOkMessage)
+    case listCommittedOffsetsMessage(ListCommittedOffsetsMessage)
+    case listCommittedOffsetsOkMessage(ListCommittedOffsetsOkMessage)
 
     var type: String {
         switch self {
         case .initMessage: return "init"
         case .initOkMessage: return "init_ok"
         case .errorMessage: return "error"
+        case .sendMessage: return "send"
+        case .sendOkMessage: return "send_ok"
+        case .pollMessage: return "poll"
+        case .pollOkMessage: return "poll_ok"
+        case .commitOffsetsMessage: return "commit_offsets"
+        case .commitOffsetsOkMessage: return "commit_offsets_ok"
+        case .listCommittedOffsetsMessage: return "list_committed_offsets"
+        case .listCommittedOffsetsOkMessage: return "list_committed_offsets_ok"
         }
     }
 
@@ -69,6 +137,54 @@ enum MessageType: Codable {
                 from: jsonData
             )
             self = .errorMessage(decodedMessage)
+        case "send":
+            let decodedMessage = try jsonDecoder.decode(
+                SendMessage.self,
+                from: jsonData
+            )
+            self = .sendMessage(decodedMessage)
+        case "send_ok":
+            let decodedMessage = try jsonDecoder.decode(
+                SendOkMessage.self,
+                from: jsonData
+            )
+            self = .sendOkMessage(decodedMessage)
+        case "poll":
+            let decodedMessage = try jsonDecoder.decode(
+                PollMessage.self,
+                from: jsonData
+            )
+            self = .pollMessage(decodedMessage)
+        case "poll_ok":
+            let decodedMessage = try jsonDecoder.decode(
+                PollOkMessage.self,
+                from: jsonData
+            )
+            self = .pollOkMessage(decodedMessage)
+        case "commit_offsets":
+            let decodedMessage = try jsonDecoder.decode(
+                CommitOffsetsMessage.self,
+                from: jsonData
+            )
+            self = .commitOffsetsMessage(decodedMessage)
+        case "commit_offsets_ok":
+            let decodedMessage = try jsonDecoder.decode(
+                CommitOffsetsOkMessage.self,
+                from: jsonData
+            )
+            self = .commitOffsetsOkMessage(decodedMessage)
+        case "list_committed_offsets":
+            let decodedMessage = try jsonDecoder.decode(
+                ListCommittedOffsetsMessage.self,
+                from: jsonData
+            )
+            self = .listCommittedOffsetsMessage(decodedMessage)
+        case "list_committed_offsets_ok":
+            let decodedMessage = try jsonDecoder.decode(
+                ListCommittedOffsetsOkMessage.self,
+                from: jsonData
+            )
+            self = .listCommittedOffsetsOkMessage(decodedMessage)
         default:
             throw DecodingError.dataCorrupted(
                 DecodingError.Context(
@@ -86,6 +202,22 @@ enum MessageType: Codable {
         case .initMessage(let message):
             try container.encode(message)
         case .initOkMessage(let message):
+            try container.encode(message)
+        case .sendMessage(let message):
+            try container.encode(message)
+        case .sendOkMessage(let message):
+            try container.encode(message)
+        case .pollMessage(let message):
+            try container.encode(message)
+        case .pollOkMessage(let message):
+            try container.encode(message)
+        case .commitOffsetsMessage(let message):
+            try container.encode(message)
+        case .commitOffsetsOkMessage(let message):
+            try container.encode(message)
+        case .listCommittedOffsetsMessage(let message):
+            try container.encode(message)
+        case .listCommittedOffsetsOkMessage(let message):
             try container.encode(message)
         case .errorMessage(let message):
             try container.encode(message)
