@@ -35,6 +35,20 @@ struct SendOkMessage: Codable {
     var in_reply_to: Int
 }
 
+struct SendRpcMessage: Codable {
+    var type: String
+    var key: String
+    var msg: Int
+    var msg_id: Int
+}
+
+struct SendRpcOkMessage: Codable {
+    var type: String
+    var offset: Int
+    var msg_id: Int?
+    var in_reply_to: Int
+}
+
 struct PollMessage: Codable {
     var type: String
     var offsets: [String:Int]
@@ -42,6 +56,19 @@ struct PollMessage: Codable {
 }
 
 struct PollOkMessage: Codable {
+    var type: String
+    var msgs: [String:[[Int]]]
+    var msg_id: Int?
+    var in_reply_to: Int
+}
+
+struct PollRpcMessage: Codable {
+    var type: String
+    var offsets: [String:Int]
+    var msg_id: Int
+}
+
+struct PollRpcOkMessage: Codable {
     var type: String
     var msgs: [String:[[Int]]]
     var msg_id: Int?
@@ -60,6 +87,18 @@ struct CommitOffsetsOkMessage: Codable {
     var in_reply_to: Int
 }
 
+struct CommitOffsetsRpcMessage: Codable {
+    var type: String
+    var offsets: [String:Int]
+    var msg_id: Int
+}
+
+struct CommitOffsetsRpcOkMessage: Codable {
+    var type: String
+    var msg_id: Int?
+    var in_reply_to: Int
+}
+
 struct ListCommittedOffsetsMessage: Codable {
     var type: String
     var keys: [String]
@@ -73,11 +112,38 @@ struct ListCommittedOffsetsOkMessage: Codable {
     var in_reply_to: Int
 }
 
+struct ListCommittedOffsetsRpcMessage: Codable {
+    var type: String
+    var keys: [String]
+    var msg_id: Int
+}
+
+struct ListCommittedOffsetsRpcOkMessage: Codable {
+    var type: String
+    var offsets: [String:Int]
+    var msg_id: Int?
+    var in_reply_to: Int
+}
+
 struct ErrorMessage: Codable {
     var type: String
     var code: Int
     var text: String?
     var in_reply_to: Int?
+}
+
+enum RpcMessage {
+    case sendRpcMessage(SendRpcMessage)
+    case pollRpcMessage(PollRpcMessage)
+    case listCommittedOffsetsRpcMessage(ListCommittedOffsetsRpcMessage)
+    case commitOffsetsRpcMessageMessage(CommitOffsetsRpcMessage)
+}
+
+enum RpcOkMessage {
+    case sendRpcOkMessage(SendRpcOkMessage)
+    case pollRpcOkMessage(PollRpcOkMessage)
+    case listCommittedOffsetsRpcOkMessage(ListCommittedOffsetsRpcOkMessage)
+    case commitOffsetsRpcMessageOkMessage(CommitOffsetsRpcOkMessage)
 }
 
 enum MessageType: Codable {
@@ -86,12 +152,20 @@ enum MessageType: Codable {
     case errorMessage(ErrorMessage)
     case pollMessage(PollMessage)
     case pollOkMessage(PollOkMessage)
+    case pollRpcMessage(PollRpcMessage)
+    case pollRpcOkMessage(PollRpcOkMessage)
     case sendMessage(SendMessage)
     case sendOkMessage(SendOkMessage)
+    case sendRpcMessage(SendRpcMessage)
+    case sendRpcOkMessage(SendRpcOkMessage)
     case commitOffsetsMessage(CommitOffsetsMessage)
     case commitOffsetsOkMessage(CommitOffsetsOkMessage)
+    case commitOffsetsRpcMessage(CommitOffsetsRpcMessage)
+    case commitOffsetsRpcOkMessage(CommitOffsetsRpcOkMessage)
     case listCommittedOffsetsMessage(ListCommittedOffsetsMessage)
     case listCommittedOffsetsOkMessage(ListCommittedOffsetsOkMessage)
+    case listCommittedOffsetsRpcMessage(ListCommittedOffsetsRpcMessage)
+    case listCommittedOffsetsRpcOkMessage(ListCommittedOffsetsRpcOkMessage)
 
     var type: String {
         switch self {
@@ -100,12 +174,20 @@ enum MessageType: Codable {
         case .errorMessage: return "error"
         case .sendMessage: return "send"
         case .sendOkMessage: return "send_ok"
+        case .sendRpcMessage: return "send_rpc"
+        case .sendRpcOkMessage: return "send_rpc_ok"
         case .pollMessage: return "poll"
         case .pollOkMessage: return "poll_ok"
+        case .pollRpcMessage: return "poll_rpc"
+        case .pollRpcOkMessage: return "poll_rpc_ok"
         case .commitOffsetsMessage: return "commit_offsets"
         case .commitOffsetsOkMessage: return "commit_offsets_ok"
+        case .commitOffsetsRpcMessage: return "commit_offsets_rpc"
+        case .commitOffsetsRpcOkMessage: return "commit_offsets_rpc_ok"
         case .listCommittedOffsetsMessage: return "list_committed_offsets"
         case .listCommittedOffsetsOkMessage: return "list_committed_offsets_ok"
+        case .listCommittedOffsetsRpcMessage: return "list_committed_offsets_rpc"
+        case .listCommittedOffsetsRpcOkMessage: return "list_committed_offsets_rpc_ok"
         }
     }
 
@@ -149,6 +231,18 @@ enum MessageType: Codable {
                 from: jsonData
             )
             self = .sendOkMessage(decodedMessage)
+        case "send_rpc":
+            let decodedMessage = try jsonDecoder.decode(
+                SendRpcMessage.self,
+                from: jsonData
+            )
+            self = .sendRpcMessage(decodedMessage)
+        case "send_rpc_ok":
+            let decodedMessage = try jsonDecoder.decode(
+                SendRpcOkMessage.self,
+                from: jsonData
+            )
+            self = .sendRpcOkMessage(decodedMessage)
         case "poll":
             let decodedMessage = try jsonDecoder.decode(
                 PollMessage.self,
@@ -161,6 +255,18 @@ enum MessageType: Codable {
                 from: jsonData
             )
             self = .pollOkMessage(decodedMessage)
+        case "poll_rpc":
+            let decodedMessage = try jsonDecoder.decode(
+                PollRpcMessage.self,
+                from: jsonData
+            )
+            self = .pollRpcMessage(decodedMessage)
+        case "poll_rpc_ok":
+            let decodedMessage = try jsonDecoder.decode(
+                PollRpcOkMessage.self,
+                from: jsonData
+            )
+            self = .pollRpcOkMessage(decodedMessage)
         case "commit_offsets":
             let decodedMessage = try jsonDecoder.decode(
                 CommitOffsetsMessage.self,
@@ -173,6 +279,18 @@ enum MessageType: Codable {
                 from: jsonData
             )
             self = .commitOffsetsOkMessage(decodedMessage)
+        case "commit_offsets_rpc":
+            let decodedMessage = try jsonDecoder.decode(
+                CommitOffsetsRpcMessage.self,
+                from: jsonData
+            )
+            self = .commitOffsetsRpcMessage(decodedMessage)
+        case "commit_offsets_rpc_ok":
+            let decodedMessage = try jsonDecoder.decode(
+                CommitOffsetsRpcOkMessage.self,
+                from: jsonData
+            )
+            self = .commitOffsetsRpcOkMessage(decodedMessage)
         case "list_committed_offsets":
             let decodedMessage = try jsonDecoder.decode(
                 ListCommittedOffsetsMessage.self,
@@ -185,6 +303,18 @@ enum MessageType: Codable {
                 from: jsonData
             )
             self = .listCommittedOffsetsOkMessage(decodedMessage)
+        case "list_committed_offsets_rpc":
+            let decodedMessage = try jsonDecoder.decode(
+                ListCommittedOffsetsRpcMessage.self,
+                from: jsonData
+            )
+            self = .listCommittedOffsetsRpcMessage(decodedMessage)
+        case "list_committed_offsets_rpc_ok":
+            let decodedMessage = try jsonDecoder.decode(
+                ListCommittedOffsetsRpcOkMessage.self,
+                from: jsonData
+            )
+            self = .listCommittedOffsetsRpcOkMessage(decodedMessage)
         default:
             throw DecodingError.dataCorrupted(
                 DecodingError.Context(
@@ -207,17 +337,33 @@ enum MessageType: Codable {
             try container.encode(message)
         case .sendOkMessage(let message):
             try container.encode(message)
+        case .sendRpcMessage(let message):
+            try container.encode(message)
+        case .sendRpcOkMessage(let message):
+            try container.encode(message)
         case .pollMessage(let message):
             try container.encode(message)
         case .pollOkMessage(let message):
+            try container.encode(message)
+        case .pollRpcMessage(let message):
+            try container.encode(message)
+        case .pollRpcOkMessage(let message):
             try container.encode(message)
         case .commitOffsetsMessage(let message):
             try container.encode(message)
         case .commitOffsetsOkMessage(let message):
             try container.encode(message)
+        case .commitOffsetsRpcMessage(let message):
+            try container.encode(message)
+        case .commitOffsetsRpcOkMessage(let message):
+            try container.encode(message)
         case .listCommittedOffsetsMessage(let message):
             try container.encode(message)
         case .listCommittedOffsetsOkMessage(let message):
+            try container.encode(message)
+        case .listCommittedOffsetsRpcMessage(let message):
+            try container.encode(message)
+        case .listCommittedOffsetsRpcOkMessage(let message):
             try container.encode(message)
         case .errorMessage(let message):
             try container.encode(message)
