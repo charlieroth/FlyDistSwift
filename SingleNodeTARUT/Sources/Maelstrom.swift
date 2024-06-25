@@ -52,7 +52,19 @@ struct TxnMessage: Codable {
     let txn: [TxnOperation]
 }
 
+struct TxnRpcMessage: Codable {
+    let type: String
+    var msg_id: Int
+    let txn: [TxnOperation]
+}
+
 struct TxnOkMessage: Codable {
+    let type: String
+    let in_reply_to: Int
+    let txn: [TxnOperation]
+}
+
+struct TxnRpcOkMessage: Codable {
     let type: String
     let in_reply_to: Int
     let txn: [TxnOperation]
@@ -65,11 +77,21 @@ struct ErrorMessage: Codable {
     let in_reply_to: Int?
 }
 
+enum RpcMessage {
+    case txnRpcMessage(TxnRpcMessage)
+}
+
+enum RpcOkMessage {
+    case txnRpcOkMessage(TxnRpcOkMessage)
+}
+
 enum MessageType: Codable {
     case initMessage(InitMessage)
     case initOkMessage(InitOkMessage)
     case txnMessage(TxnMessage)
+    case txnRpcMessage(TxnRpcMessage)
     case txnOkMessage(TxnOkMessage)
+    case txnRpcOkMessage(TxnRpcOkMessage)
     case errorMessage(ErrorMessage)
 
     private enum CodingKeys: String, CodingKey {
@@ -90,9 +112,15 @@ enum MessageType: Codable {
         case "txn":
             let message = try TxnMessage(from: decoder)
             self = .txnMessage(message)
+        case "txn_rpc":
+            let message = try TxnRpcMessage(from: decoder)
+            self = .txnRpcMessage(message)
         case "txn_ok":
             let message = try TxnOkMessage(from: decoder)
             self = .txnOkMessage(message)
+        case "txn_rpc_ok":
+            let message = try TxnRpcOkMessage(from: decoder)
+            self = .txnRpcOkMessage(message)
         case "error":
             let message = try ErrorMessage(from: decoder)
             self = .errorMessage(message)
@@ -114,7 +142,11 @@ enum MessageType: Codable {
             try container.encode(message)
         case .txnMessage(let message):
             try container.encode(message)
+        case .txnRpcMessage(let message):
+            try container.encode(message)
         case .txnOkMessage(let message):
+            try container.encode(message)
+        case .txnRpcOkMessage(let message):
             try container.encode(message)
         case .errorMessage(let message):
             try container.encode(message)

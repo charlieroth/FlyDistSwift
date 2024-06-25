@@ -28,6 +28,16 @@ struct SingleNodeTARUT {
                     try await node.handleTxn(req: req, body: body)
                 }
                 break
+            case .txnRpcMessage(let body):
+                Task {
+                    try await node.handleTxnRpc(req: req, body: body)
+                }
+                break
+            case .txnRpcOkMessage(let body):
+                Task {
+                    try await node.handleTxnRpcOk(req: req, body: body)
+                }
+                break
             default:
                 stderr.write("no message handler for: \(req.body)\n")
                 break
