@@ -9,77 +9,102 @@ import Foundation
 import AsyncAlgorithms
 
 struct InitMessage: Codable {
-    var type: String
-    var node_id: String
-    var node_ids: [String]
-    var msg_id: Int
+    let type: String
+    let node_id: String
+    let node_ids: [String]
+    let msg_id: Int
 }
 
 struct InitOkMessage: Codable {
-    var type: String
-    var msg_id: Int?
-    var in_reply_to: Int
+    let type: String
+    let in_reply_to: Int
+}
+
+struct TxnOperation: Codable {
+    let op: String
+    let key: Int
+    let value: Int?
+    
+    init(op: String, key: Int, value: Int?) {
+        self.op = op
+        self.key = key
+        self.value = value
+    }
+    
+    init(from decoder: Decoder) throws {
+        var container = try decoder.unkeyedContainer()
+        self.op = try container.decode(String.self)
+        self.key = try container.decode(Int.self)
+        self.value = try container.decodeIfPresent(Int.self)
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.unkeyedContainer()
+        try container.encode(self.op)
+        try container.encode(self.key)
+        try container.encode(self.value)
+    }
+}
+
+struct TxnMessage: Codable {
+    let type: String
+    let msg_id: Int
+    let txn: [TxnOperation]
+}
+
+struct TxnOkMessage: Codable {
+    let type: String
+    let in_reply_to: Int
+    let txn: [TxnOperation]
 }
 
 struct ErrorMessage: Codable {
-    var type: String
-    var code: Int
-    var text: String?
-    var in_reply_to: Int?
+    let type: String
+    let code: Int
+    let text: String?
+    let in_reply_to: Int?
 }
 
 enum MessageType: Codable {
     case initMessage(InitMessage)
     case initOkMessage(InitOkMessage)
+    case txnMessage(TxnMessage)
+    case txnOkMessage(TxnOkMessage)
     case errorMessage(ErrorMessage)
 
-    var type: String {
-        switch self {
-        case .initMessage: return "init"
-        case .initOkMessage: return "init_ok"
-        case .errorMessage: return "error"
-        }
+    private enum CodingKeys: String, CodingKey {
+        case type
     }
 
-    // Decoding logic for different message types
     init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        let decodedValue = try container.decode(AnyCodable.self).value as! [String: Any]
-        let type = decodedValue["type"] as! String
-
-        let jsonData = try JSONSerialization.data(withJSONObject: decodedValue)
-        let jsonDecoder = JSONDecoder()
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let type = try container.decode(String.self, forKey: .type)
 
         switch type {
         case "init":
-            let decodedMessage = try jsonDecoder.decode(
-                InitMessage.self,
-                from: jsonData
-            )
-            self = .initMessage(decodedMessage)
+            let message = try InitMessage(from: decoder)
+            self = .initMessage(message)
         case "init_ok":
-            let decodedMessage = try jsonDecoder.decode(
-                InitOkMessage.self,
-                from: jsonData
-            )
-            self = .initOkMessage(decodedMessage)
+            let message = try InitOkMessage(from: decoder)
+            self = .initOkMessage(message)
+        case "txn":
+            let message = try TxnMessage(from: decoder)
+            self = .txnMessage(message)
+        case "txn_ok":
+            let message = try TxnOkMessage(from: decoder)
+            self = .txnOkMessage(message)
         case "error":
-            let decodedMessage = try jsonDecoder.decode(
-                ErrorMessage.self,
-                from: jsonData
-            )
-            self = .errorMessage(decodedMessage)
+            let message = try ErrorMessage(from: decoder)
+            self = .errorMessage(message)
         default:
-            throw DecodingError.dataCorrupted(
-                DecodingError.Context(
-                    codingPath: decoder.codingPath,
-                    debugDescription: "Invalid type"
-                )
+            throw DecodingError.dataCorruptedError(
+                forKey: .type,
+                in: container,
+                debugDescription: "Unknown message type type"
             )
         }
     }
 
-    // Encoding logic for different message types
     func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
         switch self {
@@ -87,64 +112,18 @@ enum MessageType: Codable {
             try container.encode(message)
         case .initOkMessage(let message):
             try container.encode(message)
+        case .txnMessage(let message):
+            try container.encode(message)
+        case .txnOkMessage(let message):
+            try container.encode(message)
         case .errorMessage(let message):
             try container.encode(message)
         }
     }
 }
 
-// Base structure for a Maelstrom message
 struct MaelstromMessage: Codable {
     let src: String
     let dest: String
     let body: MessageType
-}
-
-// Utility to handle any type of value in JSON
-struct AnyCodable: Codable {
-    let value: Any
-
-    init(_ value: Any) {
-        self.value = value
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        if let intValue = try? container.decode(Int.self) {
-            value = intValue
-        } else if let doubleValue = try? container.decode(Double.self) {
-            value = doubleValue
-        } else if let stringValue = try? container.decode(String.self) {
-            value = stringValue
-        } else if let boolValue = try? container.decode(Bool.self) {
-            value = boolValue
-        } else if let arrayValue = try? container.decode([AnyCodable].self) {
-            value = arrayValue.map { $0.value }
-        } else if let dictionaryValue = try? container.decode([String: AnyCodable].self) {
-            value = dictionaryValue.mapValues { $0.value }
-        } else {
-            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Unable to decode value")
-        }
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.singleValueContainer()
-        if let intValue = value as? Int {
-            try container.encode(intValue)
-        } else if let doubleValue = value as? Double {
-            try container.encode(doubleValue)
-        } else if let stringValue = value as? String {
-            try container.encode(stringValue)
-        } else if let boolValue = value as? Bool {
-            try container.encode(boolValue)
-        } else if let arrayValue = value as? [Any] {
-            let codableArray = arrayValue.map { AnyCodable($0) }
-            try container.encode(codableArray)
-        } else if let dictionaryValue = value as? [String: Any] {
-            let codableDictionary = dictionaryValue.mapValues { AnyCodable($0) }
-            try container.encode(codableDictionary)
-        } else {
-            throw EncodingError.invalidValue(value, EncodingError.Context(codingPath: container.codingPath, debugDescription: "Unable to encode value"))
-        }
-    }
 }
